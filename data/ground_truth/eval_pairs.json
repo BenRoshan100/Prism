@@ -1,0 +1,102 @@
+[
+  {
+    "query": "What was the total UPI transaction volume in FY2024?",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["131 billion", "14.04 billion", "transaction volume", "FY2024"]
+  },
+  {
+    "query": "What was India's GDP growth rate in FY2024?",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["7.6 per cent", "GDP growth", "FY2024", "domestic demand"]
+  },
+  {
+    "query": "What were Bajaj Finance's Assets Under Management in Q3 FY2024?",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["AUM", "3,10,672 crore", "35%", "assets under management"]
+  },
+  {
+    "query": "What is RBI's stance on digital lending regulations?",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["digital lending", "NBFC", "Lending Service Providers", "DLA", "disclosure"]
+  },
+  {
+    "query": "How many banks were live on UPI by March 2024?",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["580 banks", "live on UPI", "March 2024"]
+  },
+  {
+    "query": "What was the UPI fraud rate in FY2024?",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["0.0006%", "fraud rate", "3.07 lakh", "fraud cases"]
+  },
+  {
+    "query": "What was the RBI repo rate during FY2024?",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["6.50 per cent", "repo rate", "monetary policy", "MPC"]
+  },
+  {
+    "query": "What was Bajaj Finance's profit after tax in Q3 FY2024?",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["3,639 crore", "profit after tax", "22%", "earnings per share"]
+  },
+  {
+    "query": "What is UPI Lite and how many users does it have?",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["UPI Lite", "small-value", "Rs 500", "5.2 crore", "near-zero decline"]
+  },
+  {
+    "query": "What was India's CPI inflation rate in FY2024?",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["5.4 per cent", "CPI", "inflation", "core inflation", "4.2 per cent"]
+  },
+  {
+    "query": "What is Bajaj Finance's capital adequacy ratio?",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["CRAR", "23.8%", "capital adequacy", "Tier-I", "22.1%"]
+  },
+  {
+    "query": "Which countries accept UPI payments internationally?",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["Singapore", "UAE", "France", "Sri Lanka", "international", "cross-border"]
+  },
+  {
+    "query": "What was India's foreign exchange reserves in March 2024?",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["USD 645.6 billion", "foreign exchange reserves", "March 2024"]
+  },
+  {
+    "query": "What is Bajaj Finance's Gross NPA ratio?",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["GNPA", "0.95%", "net NPA", "0.36%", "provision coverage"]
+  },
+  {
+    "query": "What is the market share of PhonePe on UPI?",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["PhonePe", "47%", "Google Pay", "34%", "market share"]
+  },
+  {
+    "query": "What is the banking sector's GNPA ratio as reported by RBI?",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["3.2 per cent", "GNPA", "net NPA", "0.8 per cent", "banking sector"]
+  },
+  {
+    "query": "How much did Bajaj Finance spend on technology?",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["1,180 crore", "technology spend", "12%", "operating expenses"]
+  },
+  {
+    "query": "What are the BBPS transaction statistics for FY2024?",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["BBPS", "1,243 crore", "15.4 lakh crore", "42%"]
+  },
+  {
+    "query": "What is the Digital Rupee pilot status?",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["Digital Rupee", "CBDC", "e-Rupee", "50 cities", "10 lakh", "retail"]
+  },
+  {
+    "query": "What is Bajaj Housing Finance's AUM and IPO plans?",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["Bajaj Housing Finance", "72,400 crore", "IPO", "DRHP", "listing"]
+  }
+]

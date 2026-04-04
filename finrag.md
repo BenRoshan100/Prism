@@ -41,7 +41,8 @@ Most RAG portfolios ship without retrieval evaluation. FinRAG adds a self-scorin
 | Document loading | `pypdf`, `langchain.document_loaders` |
 | Chunking | `RecursiveCharacterTextSplitter` |
 | Eval | Custom Python module — no external eval library |
-| UI | Streamlit (multi-tab: Chat + Eval Dashboard) |
+| Backend API | FastAPI + Uvicorn |
+| Frontend | React (Vite + Tailwind CSS) |
 | Deployment | Render (Dockerfile included, GitHub repo: https://github.com/BenRoshan100/fin-rag.git) |
 | Config | `.env` for API keys, `config.yaml` for chunking/retrieval params |
 
@@ -51,13 +52,6 @@ Most RAG portfolios ship without retrieval evaluation. FinRAG adds a self-scorin
 
 ```
 finrag/
-├── README.md
-├── requirements.txt
-├── .env.example
-├── config.yaml
-├── Dockerfile
-├── .gitignore
-│
 ├── data/
 │   ├── raw/                        # Drop PDFs here
 │   │   ├── rbi_annual_report_2024.pdf
@@ -66,26 +60,39 @@ finrag/
 │   └── ground_truth/
 │       └── eval_pairs.json         # 20 query/relevant-chunk pairs for Precision@K
 │
-├── src/
+├── server/
 │   ├── __init__.py
+│   ├── main.py                     # FastAPI app entrypoint
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── chat.py                 # POST /api/chat, DELETE /api/chat/memory
+│   │   └── eval.py                 # GET /api/eval/session, POST /api/eval/precision
 │   ├── ingest.py                   # Document loading, chunking, embedding, ChromaDB storage
 │   ├── retriever.py                # Query ChromaDB, return top-K chunks with metadata
 │   ├── memory.py                   # ConversationBufferMemory setup and management
-│   ├── chain.py                    # LangChain QA chain combining retriever + memory + Claude
+│   ├── chain.py                    # LangChain QA chain combining retriever + memory + LLM
 │   ├── eval/
 │   │   ├── __init__.py
 │   │   ├── precision.py            # Precision@K computation against ground truth
 │   │   └── faithfulness.py         # LLM-as-Judge faithfulness scorer
 │   └── utils.py                    # Logging, config loader, token counter
 │
-├── app/
-│   ├── streamlit_app.py            # Main Streamlit entrypoint
-│   ├── pages/
-│   │   ├── chat.py                 # Chat tab UI
-│   │   └── eval_dashboard.py       # Eval metrics tab UI
-│   └── components/
-│       ├── message_bubble.py       # Chat message component
-│       └── source_expander.py      # Source chunk expander component
+├── frontend/
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   ├── index.html
+│   └── src/
+│       ├── main.jsx                # React entrypoint
+│       ├── App.jsx                 # Root component with tab navigation
+│       ├── api.js                  # Axios client for FastAPI backend
+│       ├── components/
+│       │   ├── ChatTab.jsx         # Chat interface
+│       │   ├── EvalDashboard.jsx   # Eval metrics dashboard
+│       │   ├── MessageBubble.jsx   # Chat message component
+│       │   └── SourceExpander.jsx  # Source chunk expander component
+│       └── index.css               # Tailwind imports
 │
 ├── scripts/
 │   ├── run_ingest.py               # CLI: python scripts/run_ingest.py --data-dir data/raw
@@ -97,6 +104,12 @@ finrag/
 │   ├── test_chain.py
 │   └── test_eval.py
 │
+├── requirements.txt                # Python backend dependencies
+├── .env.example
+├── config.yaml
+├── Dockerfile
+├── .gitignore
+│
 └── chroma_db/                      # Auto-created by ChromaDB, gitignored
 ```
 
@@ -104,7 +117,7 @@ finrag/
 
 ## 4. Module Specifications
 
-### 4.1 `src/ingest.py`
+### 4.1 `server/ingest.py`
 
 **Purpose:** Load documents from `data/raw/`, chunk them, embed them, store in ChromaDB.
 
@@ -147,7 +160,7 @@ def run_ingestion_pipeline(data_dir: str) -> Chroma:
 
 ---
 
-### 4.2 `src/retriever.py`
+### 4.2 `server/retriever.py`
 
 **Purpose:** Query ChromaDB and return top-K chunks with similarity scores and metadata.
 
@@ -176,7 +189,7 @@ def retrieve_with_scores(query: str, k: int = 5) -> list[dict]:
 
 ---
 
-### 4.3 `src/memory.py`
+### 4.3 `server/memory.py`
 
 **Purpose:** Manage conversation memory across turns.
 
@@ -202,7 +215,7 @@ def clear_memory(memory: ConversationBufferMemory) -> None:
 
 ---
 
-### 4.4 `src/chain.py`
+### 4.4 `server/chain.py`
 
 **Purpose:** Assemble the full RAG + memory chain. Core of the application.
 
@@ -237,7 +250,7 @@ def run_query(chain, question: str) -> dict:
 
 ---
 
-### 4.5 `src/eval/precision.py`
+### 4.5 `server/eval/precision.py`
 
 **Purpose:** Compute Precision@K against a ground truth set.
 
@@ -281,7 +294,7 @@ def run_batch_precision_eval(eval_pairs_path: str, k: int = 5) -> dict:
 
 ---
 
-### 4.6 `src/eval/faithfulness.py`
+### 4.6 `server/eval/faithfulness.py`
 
 **Purpose:** Score whether the generated answer is faithful to the retrieved context using LLM-as-Judge.
 
@@ -321,7 +334,7 @@ def score_faithfulness(answer: str, source_chunks: list[dict]) -> dict:
 
 ---
 
-### 4.7 `src/utils.py`
+### 4.7 `server/utils.py`
 
 ```python
 def load_config(config_path: str = "config.yaml") -> dict:
@@ -363,79 +376,90 @@ eval:
 
 ---
 
-## 5. Streamlit Application
+## 5. FastAPI Backend + React Frontend
 
-### 5.1 `app/streamlit_app.py`
+### 5.1 `server/main.py` — FastAPI Application
 
-**Entry point.** Sets up page config, loads chain + memory, renders tab navigation.
+**Entry point.** Initializes FastAPI app, CORS middleware, and includes route modules.
 
 ```python
-# Page config
-st.set_page_config(page_title="FinRAG", layout="wide", page_icon="📊")
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from server.routes import chat, eval
 
-# Tabs
-tab1, tab2 = st.tabs(["💬 Chat", "📊 Eval Dashboard"])
+app = FastAPI(title="FinRAG API")
 
-with tab1:
-    render_chat_tab()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Vite dev server
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-with tab2:
-    render_eval_dashboard()
-```
+app.include_router(chat.router, prefix="/api")
+app.include_router(eval.router, prefix="/api")
 
-**Session state to initialise:**
-```python
-if "chain" not in st.session_state:
-    st.session_state.chain = build_qa_chain(retriever, memory)
-if "memory" not in st.session_state:
-    st.session_state.memory = create_memory()
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "eval_log" not in st.session_state:
-    st.session_state.eval_log = []  # List of {query, answer, precision, faithfulness}
+# On startup: initialize chain, memory, retriever as app state
+@app.on_event("startup")
+def startup():
+    app.state.memory = create_memory()
+    retriever = get_retriever()
+    app.state.chain = build_qa_chain(retriever, app.state.memory)
+    app.state.eval_log = []
 ```
 
 ---
 
-### 5.2 Chat Tab (`app/pages/chat.py`)
+### 5.2 `server/routes/chat.py` — Chat API
 
-**Layout:**
-```
-[Sidebar]                    [Main panel]
-- Loaded documents list      - Chat message history
-- Chunk count                - Input box (bottom)
-- "New Conversation" btn     - Source expander below each answer
-- Eval summary (last 5)
-```
+```python
+# POST /api/chat
+# Request:  { "question": "What was UPI volume in FY24?" }
+# Response: {
+#   "answer": "...",
+#   "sources": [{ "content", "source", "page", "chunk_index", "similarity_score" }],
+#   "faithfulness": { "score": 4, "reason": "..." }
+# }
 
-**Behaviour:**
-- User types question → `run_query(chain, question)` → display answer
-- Below each answer: collapsible `st.expander("📄 Sources (K chunks)")` showing source filename, page, similarity score, chunk preview (first 200 chars)
-- After each answer: run `score_faithfulness()` → display `🟢 Faithful (4/5)` or `🟡 Moderate (3/5)` or `🔴 Low (1-2/5)` badge inline
-- "New Conversation" button clears memory and resets `st.session_state.messages`
+# DELETE /api/chat/memory
+# Clears conversation memory. Returns { "status": "cleared" }
+```
 
 ---
 
-### 5.3 Eval Dashboard Tab (`app/pages/eval_dashboard.py`)
+### 5.3 `server/routes/eval.py` — Eval API
 
-**Three sections:**
+```python
+# GET /api/eval/session
+# Returns the session eval log: list of { query, answer, faithfulness_score, reason }
 
-**Section 1 — Session Eval Log**
-Table of all queries in current session:
-| Query | Faithfulness Score | Reason |
-|---|---|---|
-| What was UPI volume in FY24? | 4/5 | Accurate summary of NPCI data |
+# POST /api/eval/precision
+# Runs batch Precision@K eval against ground truth.
+# Response: {
+#   "mean_precision_at_k": 0.74,
+#   "per_query_results": [{ "query", "precision_at_k", "retrieved_sources" }]
+# }
+```
 
-**Section 2 — Batch Precision@K Runner**
-- Button: "Run Precision@K Eval"
-- On click: runs `run_batch_precision_eval()` against `eval_pairs.json`
-- Shows: mean Precision@K score + per-query breakdown table
-- Bar chart: precision score per query (use `st.bar_chart`)
+---
 
-**Section 3 — Retrieval Health**
-- Mean faithfulness score (current session)
-- Mean Precision@K (last batch run)
-- Simple traffic light: 🟢 if both > 0.7, 🟡 if either 0.5–0.7, 🔴 if either < 0.5
+### 5.4 React Frontend (`frontend/`)
+
+**Built with:** Vite + React + Tailwind CSS
+
+**Two-tab layout via tab navigation in `App.jsx`:**
+
+**Chat Tab (`ChatTab.jsx`):**
+- Sidebar: loaded documents list, chunk count, "New Conversation" button, eval summary (last 5)
+- Main panel: chat message history, input box at bottom
+- Each assistant message: collapsible source expander showing source filename, page, similarity score, chunk preview (first 200 chars)
+- Faithfulness badge inline after each answer: green (4-5/5), yellow (3/5), red (1-2/5)
+- "New Conversation" calls `DELETE /api/chat/memory` and clears local message state
+
+**Eval Dashboard (`EvalDashboard.jsx`):**
+- Section 1 — Session eval log table (fetched from `GET /api/eval/session`)
+- Section 2 — "Run Precision@K Eval" button → calls `POST /api/eval/precision` → shows mean score + per-query breakdown table + bar chart
+- Section 3 — Retrieval health traffic light: green if both > 0.7, yellow if either 0.5-0.7, red if either < 0.5
 
 ---
 
@@ -513,7 +537,7 @@ Output:
 
 ---
 
-## 9. `requirements.txt`
+## 9. `requirements.txt` (Python backend)
 
 ```
 openai>=1.0.0
@@ -524,7 +548,8 @@ langchain-chroma>=0.1.0
 chromadb>=0.4.0
 sentence-transformers>=2.2.0
 pypdf>=3.0.0
-streamlit>=1.32.0
+fastapi>=0.110.0
+uvicorn>=0.27.0
 pyyaml>=6.0
 python-dotenv>=1.0.0
 pytest>=7.0.0
@@ -543,6 +568,16 @@ EURON_API_KEY=your_key_here
 ## 11. `Dockerfile`
 
 ```dockerfile
+# --- Stage 1: Build React frontend ---
+FROM node:20-slim AS frontend-build
+
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ .
+RUN npm run build
+
+# --- Stage 2: Python backend + serve static ---
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -551,13 +586,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
 # Pre-run ingestion at build time (optional — comment out if data not bundled)
 # RUN python scripts/run_ingest.py --data-dir data/raw
 
-EXPOSE 8501
+EXPOSE 8000
 
-CMD ["streamlit", "run", "app/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 ---
@@ -597,23 +633,24 @@ CMD ["streamlit", "run", "app/streamlit_app.py", "--server.port=8501", "--server
 ## 13. Build Order — Phased Implementation
 
 ### Phase 1: Project Setup & Configuration
-> **Goal:** Scaffold the project, set up config, and install dependencies.
+> **Goal:** Scaffold the project (backend + frontend), set up config, and install dependencies.
 
-- [ ] 1.1 Scaffold full directory structure with empty files
-- [ ] 1.2 Write `requirements.txt`
-- [ ] 1.3 Implement `config.yaml` and `.env.example`
-- [ ] 1.4 Implement `src/utils.py` (config loader, logger, token counter)
-- [ ] 1.5 Set up `.gitignore` (chroma_db/, .env, __pycache__, etc.)
+- [ ] 1.1 Scaffold full directory structure with empty files (server/, frontend/, scripts/, tests/, data/)
+- [ ] 1.2 Write `requirements.txt` (Python backend deps)
+- [ ] 1.3 Initialize React frontend with Vite + Tailwind CSS (`frontend/`)
+- [ ] 1.4 Implement `config.yaml` and `.env.example`
+- [ ] 1.5 Implement `server/utils.py` (config loader, logger, token counter)
+- [ ] 1.6 Set up `.gitignore` (chroma_db/, .env, __pycache__, node_modules/, dist/, etc.)
 
-**Milestone:** `pip install -r requirements.txt` succeeds, config loads without error.
+**Milestone:** `pip install -r requirements.txt` succeeds, `cd frontend && npm install` succeeds, config loads without error.
 
 ---
 
 ### Phase 2: Ingestion & Retrieval Pipeline
 > **Goal:** Build the core data pipeline — load documents, chunk, embed, store, and retrieve.
 
-- [ ] 2.1 Implement `src/ingest.py` — all 4 functions (load, chunk, embed, orchestrate)
-- [ ] 2.2 Implement `src/retriever.py` — both functions (get_retriever, retrieve_with_scores)
+- [ ] 2.1 Implement `server/ingest.py` — all 4 functions (load, chunk, embed, orchestrate)
+- [ ] 2.2 Implement `server/retriever.py` — both functions (get_retriever, retrieve_with_scores)
 - [ ] 2.3 Implement `scripts/run_ingest.py` (CLI for ingestion)
 - [ ] 2.4 Add sample documents to `data/raw/`
 - [ ] 2.5 Verify: `python scripts/run_ingest.py --data-dir data/raw` processes documents and reports chunk count
@@ -625,8 +662,8 @@ CMD ["streamlit", "run", "app/streamlit_app.py", "--server.port=8501", "--server
 ### Phase 3: Memory & RAG Chain
 > **Goal:** Wire up conversation memory and the full RAG chain with Claude.
 
-- [ ] 3.1 Implement `src/memory.py` — all 3 functions (create, get_as_string, clear)
-- [ ] 3.2 Implement `src/chain.py` — both functions (build_qa_chain, run_query)
+- [ ] 3.1 Implement `server/memory.py` — all 3 functions (create, get_as_string, clear)
+- [ ] 3.2 Implement `server/chain.py` — both functions (build_qa_chain, run_query)
 - [ ] 3.3 Verify: chain answers a fintech question from CLI and returns source documents
 
 **Milestone:** End-to-end RAG pipeline works — query → retrieve → generate answer with sources.
@@ -637,8 +674,8 @@ CMD ["streamlit", "run", "app/streamlit_app.py", "--server.port=8501", "--server
 > **Goal:** Add self-scoring retrieval eval — Precision@K and faithfulness.
 
 - [ ] 4.1 Generate `data/ground_truth/eval_pairs.json` — 20 query/relevant-chunk pairs
-- [ ] 4.2 Implement `src/eval/precision.py` — both functions (compute_precision_at_k, run_batch)
-- [ ] 4.3 Implement `src/eval/faithfulness.py` — LLM-as-Judge scorer
+- [ ] 4.2 Implement `server/eval/precision.py` — both functions (compute_precision_at_k, run_batch)
+- [ ] 4.3 Implement `server/eval/faithfulness.py` — LLM-as-Judge scorer
 - [ ] 4.4 Implement `scripts/run_eval.py` (CLI for batch eval)
 - [ ] 4.5 Verify: `python scripts/run_eval.py` outputs mean Precision@5 and per-query scores
 
@@ -646,14 +683,27 @@ CMD ["streamlit", "run", "app/streamlit_app.py", "--server.port=8501", "--server
 
 ---
 
-### Phase 5: Streamlit UI
-> **Goal:** Build the multi-tab Streamlit app — Chat + Eval Dashboard.
+### Phase 5a: FastAPI Backend API
+> **Goal:** Build the REST API that serves the RAG chain and eval endpoints.
 
-- [ ] 5.1 Implement `app/streamlit_app.py` (entry point, page config, session state, tabs)
-- [ ] 5.2 Implement `app/components/message_bubble.py` and `app/components/source_expander.py`
-- [ ] 5.3 Implement `app/pages/chat.py` (chat UI, source expanders, faithfulness badges)
-- [ ] 5.4 Implement `app/pages/eval_dashboard.py` (session log, batch Precision@K, retrieval health)
-- [ ] 5.5 Verify: `streamlit run app/streamlit_app.py` launches both tabs and chat works end-to-end
+- [ ] 5a.1 Implement `server/main.py` (FastAPI app, CORS, startup event, static file serving)
+- [ ] 5a.2 Implement `server/routes/chat.py` (POST /api/chat, DELETE /api/chat/memory)
+- [ ] 5a.3 Implement `server/routes/eval.py` (GET /api/eval/session, POST /api/eval/precision)
+- [ ] 5a.4 Verify: `uvicorn server.main:app` starts and API endpoints respond correctly
+
+**Milestone:** All API endpoints work — chat returns answers with sources + faithfulness, eval returns scores.
+
+---
+
+### Phase 5b: React Frontend
+> **Goal:** Build the React UI — Chat + Eval Dashboard tabs.
+
+- [ ] 5b.1 Implement `frontend/src/api.js` (Axios client for backend)
+- [ ] 5b.2 Implement `frontend/src/App.jsx` (tab navigation between Chat and Eval)
+- [ ] 5b.3 Implement `frontend/src/components/ChatTab.jsx` (chat UI, sidebar, message input)
+- [ ] 5b.4 Implement `frontend/src/components/MessageBubble.jsx` and `SourceExpander.jsx`
+- [ ] 5b.5 Implement `frontend/src/components/EvalDashboard.jsx` (session log, batch Precision@K, retrieval health)
+- [ ] 5b.6 Verify: `npm run dev` launches frontend, chat works end-to-end with backend
 
 **Milestone:** Full UI is functional — chat with sources, inline faithfulness badges, eval dashboard with bar chart.
 
@@ -681,7 +731,7 @@ CMD ["streamlit", "run", "app/streamlit_app.py", "--server.port=8501", "--server
 - [ ] 7.4 Verify live URL is accessible and functional
 - [ ] 7.5 Write `README.md` (problem, architecture, demo GIF, eval results, setup steps)
 
-**Milestone:** App is live on Railway, README is complete, project is portfolio-ready.
+**Milestone:** App is live on Render, README is complete, project is portfolio-ready.
 
 ---
 

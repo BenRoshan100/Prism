@@ -1,0 +1,85 @@
+NATIONAL PAYMENTS CORPORATION OF INDIA — UPI ECOSYSTEM REPORT FY2024
+
+EXECUTIVE SUMMARY
+
+The Unified Payments Interface (UPI) completed another year of record-breaking growth in FY2024. Total UPI transaction volume reached 14.04 billion transactions per month by March 2024, with annual aggregate volume crossing 131 billion transactions valued at approximately Rs 200 lakh crore. UPI has firmly established itself as India's primary digital payment rail, processing more transactions than all other digital payment modes combined.
+
+SECTION 1: UPI TRANSACTION STATISTICS
+
+Monthly Transaction Trends:
+- April 2023: 8.89 billion transactions, Rs 14.07 lakh crore value
+- July 2023: 9.96 billion transactions, Rs 15.34 lakh crore value
+- October 2023: 11.41 billion transactions, Rs 17.16 lakh crore value
+- January 2024: 12.20 billion transactions, Rs 18.41 lakh crore value
+- March 2024: 14.04 billion transactions, Rs 19.78 lakh crore value
+
+Year-on-year growth: 56% in volume, 43% in value compared to FY2023.
+
+Average ticket size decreased from Rs 1,730 in FY2023 to Rs 1,524 in FY2024, indicating increased adoption for small-value everyday transactions including transit, vending machines, and micropayments.
+
+SECTION 2: UPI PARTICIPANT ECOSYSTEM
+
+Active UPI handles crossed 400 million by March 2024, with approximately 300 million unique users transacting at least once per month. The merchant ecosystem expanded significantly:
+
+- Registered UPI merchants: 3.2 crore (32 million)
+- QR code deployments: 28 crore across India
+- Third-party app providers (TPAPs): 57 approved apps
+- Market share by volume: PhonePe (47%), Google Pay (34%), Paytm (14%), Others (5%)
+
+Banking Infrastructure:
+- 580 banks live on UPI as of March 2024 (up from 437 in March 2023)
+- PSU banks accounted for 35% of UPI originating transactions
+- Private banks accounted for 42% of UPI originating transactions
+- Small Finance Banks and Payment Banks accounted for 23%
+
+SECTION 3: UPI PRODUCT INNOVATIONS
+
+UPI Lite:
+UPI Lite was launched to enable small-value transactions (up to Rs 500) with near-zero decline rates. As of March 2024, UPI Lite had 5.2 crore enabled users processing 18 crore transactions monthly. UPI Lite X, the offline variant, was piloted in 12 cities.
+
+UPI AutoPay:
+Recurring mandates on UPI grew to 12.8 crore active mandates, commonly used for OTT subscriptions (38%), utility bills (28%), insurance premiums (18%), and mutual fund SIPs (16%).
+
+Credit Line on UPI:
+RBI permitted banks to offer pre-approved credit lines via UPI. By March 2024, 8 banks had launched credit-on-UPI products, disbursing Rs 4,200 crore in cumulative credit.
+
+UPI International:
+UPI acceptance was enabled in 7 countries: Singapore, UAE, France, Sri Lanka, Mauritius, Nepal, and Bhutan. Inbound UPI usage by foreign nationals was piloted during the G20 summit. Total cross-border UPI transactions reached 1.4 crore in FY2024.
+
+SECTION 4: FRAUD AND RISK MANAGEMENT
+
+UPI fraud rate remained low at 0.0006% of total transactions by volume. NPCI's Central Fraud Registry flagged 2.1 lakh suspicious accounts during FY2024. Key fraud mitigation measures included:
+
+- Device binding and SIM verification for new UPI registrations
+- AI-based transaction monitoring detecting anomalous patterns in real-time
+- Cool-off period of 4 hours for first-time transfers exceeding Rs 2,000 to new beneficiaries
+- Collaboration with telecom operators for SIM swap fraud detection
+
+Total reported UPI fraud cases: 3.07 lakh in FY2024 (up from 2.22 lakh in FY2023), with a combined value of Rs 1,087 crore. The increase is attributed to higher transaction volumes and improved reporting mechanisms.
+
+SECTION 5: BHARAT BILL PAYMENT SYSTEM (BBPS)
+
+BBPS processed 1,243 crore transactions valued at Rs 15.4 lakh crore during FY2024, a 42% growth over FY2023. Biller categories expanded to include:
+- Electricity and water utilities (largest category at 41%)
+- Telecom and DTH (22%)
+- Insurance premiums (14%)
+- Loan EMI payments (12%)
+- Municipal taxes and fees (6%)
+- Education fees (5%)
+
+SECTION 6: IMPS AND OTHER NPCI PRODUCTS
+
+Immediate Payment Service (IMPS) processed 588 crore transactions worth Rs 69.4 lakh crore in FY2024. While IMPS growth has moderated (12% YoY) due to UPI substitution, it remains important for bank-to-bank high-value transfers.
+
+RuPay card transactions grew 34% to reach 435 crore transactions in FY2024. RuPay's domestic debit card market share stood at 60%. RuPay credit cards on UPI were used in 8.4 crore transactions monthly by March 2024.
+
+NETC FASTag processed 384 crore toll transactions valued at Rs 58,200 crore, covering 99% of national highway toll plazas.
+
+SECTION 7: OUTLOOK AND STRATEGY
+
+NPCI targets 100 billion monthly UPI transactions by 2028. Strategic priorities include:
+- Expanding UPI to 20 countries for cross-border payments
+- UPI Lite adoption target of 50 crore users
+- Enabling UPI for capital markets (IPO, mutual funds, bonds)
+- IoT-based payments integration for smart devices
+- Carbon footprint tracking for UPI transactions

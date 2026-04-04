@@ -1,0 +1,66 @@
+RESERVE BANK OF INDIA — ANNUAL REPORT 2023-24
+
+CHAPTER 1: ASSESSMENT OF THE ECONOMY
+
+India's real GDP growth for FY2024 is estimated at 7.6 per cent, driven by strong domestic demand and resilient services activity. The manufacturing sector showed signs of recovery, while agriculture growth moderated due to uneven monsoon distribution.
+
+Inflation, as measured by the Consumer Price Index (CPI), averaged 5.4 per cent during FY2024, remaining within the RBI's target band of 2-6 per cent. Core inflation (excluding food and fuel) moderated to 4.2 per cent by March 2024, reflecting the impact of monetary policy tightening.
+
+The current account deficit narrowed to 1.2 per cent of GDP in FY2024, supported by robust services exports and steady remittance inflows. Foreign exchange reserves stood at USD 645.6 billion as of March 2024.
+
+CHAPTER 2: MONETARY POLICY OPERATIONS
+
+The Monetary Policy Committee (MPC) maintained the policy repo rate at 6.50 per cent through FY2024, after cumulative hikes of 250 basis points since May 2022. The stance remained focused on withdrawal of accommodation to ensure inflation aligns with the 4 per cent target on a durable basis.
+
+Liquidity conditions transitioned from surplus to deficit during the year. The RBI conducted variable rate repo (VRR) auctions and variable rate reverse repo (VRRR) auctions to manage liquidity. The weighted average call rate (WACR) remained closely aligned with the policy repo rate.
+
+CHAPTER 3: FINANCIAL REGULATION AND SUPERVISION
+
+The RBI strengthened its regulatory framework for Non-Banking Financial Companies (NBFCs). Key regulatory actions during FY2024 included:
+
+- Scale-Based Regulation (SBR) framework implementation for NBFCs, classifying them into four layers: Base, Middle, Upper, and Top.
+- Enhanced guidelines on digital lending, requiring all digital loans to be disbursed and repaid through borrower bank accounts. Lending Service Providers (LSPs) and Digital Lending Apps (DLAs) must comply with disclosure requirements.
+- Revised guidelines on Fair Practices Code for NBFCs, emphasizing transparency in loan pricing and customer communication.
+- Risk-based supervision adopted for systemically important NBFCs with asset size above Rs 1,000 crore.
+
+The RBI also issued guidelines on climate-related financial risk management for regulated entities, requiring banks and NBFCs to integrate climate risk into their governance and risk management frameworks.
+
+CHAPTER 4: PAYMENT AND SETTLEMENT SYSTEMS
+
+The digital payments ecosystem in India continued its rapid expansion during FY2024. Total digital payment transactions grew by 44 per cent to reach 16,416 crore transactions valued at Rs 2,210 lakh crore.
+
+Unified Payments Interface (UPI) remained the dominant payment mode, processing 11,761 crore transactions worth Rs 199.9 lakh crore during FY2024. This represents year-on-year growth of 56 per cent in volume and 43 per cent in value.
+
+The RBI introduced the following initiatives to strengthen the payments infrastructure:
+- UPI for secondary market investments, enabling retail investors to block funds in their bank accounts for IPO applications.
+- Conversational payments on UPI, allowing users to initiate transactions through AI-powered conversational interfaces.
+- UPI Lite X for offline transactions up to Rs 500, enabling payments without internet connectivity.
+- Introduction of UPI for inbound travellers from G20 nations using their home country mobile numbers.
+
+RTGS and NEFT systems processed 33.2 crore and 3,259 crore transactions respectively during FY2024. The RBI continued to operate RTGS on a 24x7x365 basis.
+
+CHAPTER 5: FINANCIAL INCLUSION AND DIGITAL FINANCE
+
+The Pradhan Mantri Jan Dhan Yojana (PMJDY) accounts reached 51.5 crore as of March 2024, with total deposits of Rs 2.18 lakh crore. The average deposit per account increased to Rs 4,234.
+
+The RBI's financial literacy initiatives reached 8.7 crore participants through Centre for Financial Literacy (CFL) programmes across 812 districts.
+
+Digital Rupee (e-Rupee) pilot programmes continued with both retail (e₹-R) and wholesale (e₹-W) variants. The retail CBDC pilot was expanded to cover 50 cities with participation from 13 banks. As of March 2024, approximately 10 lakh retail e₹ wallets were active.
+
+CHAPTER 6: BANKING SECTOR DEVELOPMENTS
+
+The banking sector demonstrated improved financial health during FY2024:
+- Gross Non-Performing Assets (GNPA) ratio declined to 3.2 per cent from 3.9 per cent in March 2023.
+- Net NPA ratio fell to 0.8 per cent from 1.0 per cent.
+- Capital to Risk-Weighted Assets Ratio (CRAR) of scheduled commercial banks stood at 16.8 per cent, well above the regulatory minimum of 9 per cent.
+- Return on Assets (ROA) improved to 1.3 per cent and Return on Equity (ROE) to 13.8 per cent.
+
+Credit growth was broad-based at 16.3 per cent year-on-year as of March 2024. Personal loans grew at 29.8 per cent, services sector at 20.2 per cent, and industry at 8.5 per cent. The RBI issued advisories cautioning banks about rapid growth in unsecured personal loans and credit card outstanding.
+
+CHAPTER 7: FOREIGN EXCHANGE MANAGEMENT
+
+The Indian rupee exhibited relative stability during FY2024, depreciating marginally by 1.4 per cent against the US dollar. The RBI's intervention in the foreign exchange market was aimed at curbing excessive volatility rather than targeting any specific level.
+
+Foreign Direct Investment (FDI) inflows stood at USD 44.4 billion during FY2024. The services sector, computer software, and telecommunications attracted the highest share of FDI.
+
+The RBI permitted international trade settlements in Indian rupees (INR) with 22 countries, promoting INR as a settlement currency for cross-border transactions.

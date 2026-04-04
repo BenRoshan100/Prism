@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: finrag
+    runtime: docker
+    plan: free
+    envVars:
+      - key: EURON_API_KEY
+        sync: false
