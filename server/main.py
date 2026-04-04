@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -35,9 +36,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="FinRAG API", lifespan=lifespan)
 
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:8000",
+]
+vercel_url = os.getenv("FRONTEND_URL")
+if vercel_url:
+    allowed_origins.append(vercel_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8000"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
