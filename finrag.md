@@ -1,10 +1,10 @@
 # FinRAG — Fintech Research Agent with Persistent Memory
 ## Product Requirements Document (PRD) for Claude Code
 
-**Version:** 1.0  
-**Author:** Ben Roshan D  
-**Date:** April 2026  
-**Status:** Ready for scaffolding
+**Version:** 1.1
+**Author:** Ben Roshan D
+**Date:** April 2026
+**Status:** Built & deploying
 
 ---
 
@@ -35,15 +35,15 @@ Most RAG portfolios ship without retrieval evaluation. FinRAG adds a self-scorin
 |---|---|
 | Vector store | ChromaDB (persistent, local) |
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` (free, no API cost) |
-| LLM | Euron API (`gpt-5.3-instant`) via `openai` SDK (base_url: `https://api.euron.one/api/v1/euri`) |
-| Memory | LangChain `ConversationBufferMemory` |
-| Orchestration | LangChain `RetrievalQA` + custom chain |
-| Document loading | `pypdf`, `langchain.document_loaders` |
+| LLM | Euron API (`gpt-4.1-mini`) via `openai` SDK (base_url: `https://api.euron.one/api/v1/euri`) |
+| Memory | LangChain `ConversationBufferWindowMemory` (k=10 turns) |
+| Orchestration | LangChain `ConversationalRetrievalChain` |
+| Document loading | `pypdf`, `langchain_community.document_loaders` (PDF, TXT, CSV) |
 | Chunking | `RecursiveCharacterTextSplitter` |
 | Eval | Custom Python module — no external eval library |
 | Backend API | FastAPI + Uvicorn |
-| Frontend | React (Vite + Tailwind CSS) |
-| Deployment | Render (Dockerfile included, GitHub repo: https://github.com/BenRoshan100/fin-rag.git) |
+| Frontend | React 19 (Vite + Tailwind CSS v4) |
+| Deployment | Backend on Render (Docker), Frontend on Vercel. Repo: https://github.com/BenRoshan100/fin-rag.git |
 | Config | `.env` for API keys, `config.yaml` for chunking/retrieval params |
 
 ---
@@ -223,7 +223,7 @@ def clear_memory(memory: ConversationBufferMemory) -> None:
 def build_qa_chain(retriever, memory) -> ConversationalRetrievalChain:
     """
     Build LangChain ConversationalRetrievalChain:
-    - LLM: Euron API (gpt-5.3-instant) via ChatOpenAI with base_url="https://api.euron.one/api/v1/euri"
+    - LLM: Euron API (gpt-4.1-mini) via ChatOpenAI with base_url="https://api.euron.one/api/v1/euri"
     - Retriever: from retriever.py
     - Memory: from memory.py
     - return_source_documents: True
@@ -320,7 +320,7 @@ Respond ONLY with valid JSON: {{"score": <int>, "reason": "<one sentence>"}}
 
 def score_faithfulness(answer: str, source_chunks: list[dict]) -> dict:
     """
-    Call Euron API (gpt-5.3-instant) with FAITHFULNESS_PROMPT.
+    Call Euron API (gpt-4.1-mini) with FAITHFULNESS_PROMPT.
     Parse JSON response.
     Return:
     {
@@ -545,11 +545,15 @@ langchain>=0.1.0
 langchain-openai>=0.1.0
 langchain-community>=0.0.20
 langchain-chroma>=0.1.0
+langchain-huggingface>=0.1.0
+langchain-text-splitters>=0.1.0
+langchain-classic>=0.1.0
 chromadb>=0.4.0
 sentence-transformers>=2.2.0
 pypdf>=3.0.0
 fastapi>=0.110.0
 uvicorn>=0.27.0
+python-multipart>=0.0.6
 pyyaml>=6.0
 python-dotenv>=1.0.0
 pytest>=7.0.0
@@ -557,44 +561,61 @@ pytest>=7.0.0
 
 ---
 
-## 10. `.env.example`
+## 10. Environment Variables
 
+### Backend (`.env` locally, or Render dashboard in prod)
 ```
 EURON_API_KEY=your_key_here
+FRONTEND_URL=https://your-app.vercel.app   # production only — for CORS
 ```
+
+### Frontend (`.env` locally, or Vercel dashboard in prod)
+```
+VITE_API_URL=https://your-backend.onrender.com/api
+```
+When unset, the frontend falls back to `/api` (used in local dev via Vite proxy).
 
 ---
 
-## 11. `Dockerfile`
+## 11. `Dockerfile` (backend-only)
+
+The frontend is deployed separately on Vercel, so the Dockerfile only builds the Python backend.
 
 ```dockerfile
-# --- Stage 1: Build React frontend ---
-FROM node:20-slim AS frontend-build
-
-WORKDIR /app/frontend
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
-COPY frontend/ .
-RUN npm run build
-
-# --- Stage 2: Python backend + serve static ---
 FROM python:3.11-slim
-
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
-COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
-
-# Pre-run ingestion at build time (optional — comment out if data not bundled)
-# RUN python scripts/run_ingest.py --data-dir data/raw
+COPY server/ server/
+COPY config.yaml .
+COPY data/ground_truth/ data/ground_truth/
 
 EXPOSE 8000
 
 CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
+
+### `render.yaml` (Render Blueprint)
+```yaml
+services:
+  - type: web
+    name: finrag
+    runtime: docker
+    plan: free
+    envVars:
+      - key: EURON_API_KEY
+        sync: false
+```
+
+### Deployment flow
+1. Push repo to GitHub
+2. **Render** → New Web Service → connect repo → set `EURON_API_KEY` env var → deploy
+3. **Vercel** → Import repo → Root Directory: `frontend` → set `VITE_API_URL` to the Render URL → deploy
+4. Back on Render → set `FRONTEND_URL` to the Vercel URL (for CORS)
+
+**Note on Render free tier:** 512MB RAM is insufficient for `sentence-transformers` (loads a ~400MB PyTorch model). Either upgrade to the Standard plan (2GB RAM, $25/mo) or swap to API-based embeddings via Euron.
 
 ---
 
@@ -725,13 +746,17 @@ CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ### Phase 7: Deployment & Polish
 > **Goal:** Containerize, deploy, and finalize the project.
 
-- [ ] 7.1 Write `Dockerfile`
-- [ ] 7.2 Test Docker build and run locally
-- [ ] 7.3 Deploy to Render (connect GitHub repo: https://github.com/BenRoshan100/fin-rag.git)
-- [ ] 7.4 Verify live URL is accessible and functional
-- [ ] 7.5 Write `README.md` (problem, architecture, demo GIF, eval results, setup steps)
+- [x] 7.1 Write backend `Dockerfile` (Python-only; frontend deploys to Vercel)
+- [x] 7.2 Write `render.yaml` blueprint
+- [x] 7.3 Add `VITE_API_URL` env support in `frontend/src/api.js`
+- [x] 7.4 Configure CORS with `FRONTEND_URL` env var in `server/main.py`
+- [x] 7.5 Push to GitHub (https://github.com/BenRoshan100/fin-rag.git)
+- [ ] 7.6 Deploy backend to Render (blocked: free tier OOM — need Standard plan or API embeddings)
+- [ ] 7.7 Deploy frontend to Vercel
+- [ ] 7.8 Verify live URLs are accessible and functional
+- [ ] 7.9 Write `README.md` (problem, architecture, demo GIF, eval results, setup steps)
 
-**Milestone:** App is live on Render, README is complete, project is portfolio-ready.
+**Milestone:** Backend live on Render, frontend live on Vercel, README complete, project portfolio-ready.
 
 ---
 
@@ -744,9 +769,10 @@ CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
 - [ ] Eval dashboard batch run shows Precision@5 score and bar chart
 - [ ] Ingestion is idempotent — running twice does not duplicate chunks
 - [ ] All 4 test files pass with `pytest`
-- [ ] App deploys to Render via Dockerfile (GitHub repo connected)
-- [ ] Live URL accessible and functional
+- [ ] Backend deploys to Render via Dockerfile (GitHub repo connected)
+- [ ] Frontend deploys to Vercel with `VITE_API_URL` pointing to Render backend
+- [ ] Live URLs accessible and functional
 
 ---
 
-*PRD v1.0 — FinRAG. Feed this entire file to Claude Code as the project specification.*
+*PRD v1.1 — FinRAG. Updated to reflect actual implementation and split deployment (Render + Vercel).*

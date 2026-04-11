@@ -1,12 +1,16 @@
 import hashlib
+import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, CSVLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
 from server.utils import load_config, setup_logger
+
+load_dotenv()
 
 logger = setup_logger(__name__)
 
@@ -120,7 +124,11 @@ def embed_and_store(chunks: list, collection_name: str = "finrag") -> Chroma:
     config = load_config()
     collection_name = config.get("retrieval", {}).get("collection_name", collection_name)
 
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=os.environ.get("EURON_API_KEY"),
+        openai_api_base="https://api.euron.one/api/v1/euri",
+    )
 
     ids = [_chunk_id(chunk) for chunk in chunks]
     texts = [chunk.page_content for chunk in chunks]

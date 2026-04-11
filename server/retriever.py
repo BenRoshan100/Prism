@@ -1,9 +1,22 @@
-from langchain_huggingface import HuggingFaceEmbeddings
+import os
+
+from dotenv import load_dotenv
+from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
 from server.utils import load_config, setup_logger
 
+load_dotenv()
+
 logger = setup_logger(__name__)
+
+
+def _get_embeddings():
+    return OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=os.environ.get("EURON_API_KEY"),
+        openai_api_base="https://api.euron.one/api/v1/euri",
+    )
 
 
 def get_retriever(collection_name: str = "finrag", k: int = 5):
@@ -15,11 +28,9 @@ def get_retriever(collection_name: str = "finrag", k: int = 5):
     collection_name = config.get("retrieval", {}).get("collection_name", collection_name)
     k = config.get("retrieval", {}).get("k", k)
 
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
     vectorstore = Chroma(
         collection_name=collection_name,
-        embedding_function=embeddings,
+        embedding_function=_get_embeddings(),
         persist_directory="./chroma_db",
     )
 
@@ -34,11 +45,9 @@ def retrieve_with_scores(query: str, k: int = 5) -> list[dict]:
     collection_name = config.get("retrieval", {}).get("collection_name", "finrag")
     k = config.get("retrieval", {}).get("k", k)
 
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
     vectorstore = Chroma(
         collection_name=collection_name,
-        embedding_function=embeddings,
+        embedding_function=_get_embeddings(),
         persist_directory="./chroma_db",
     )
 
@@ -61,10 +70,9 @@ def get_document_stats(collection_name: str = "finrag") -> list[dict]:
     """Return list of {name, chunk_count} for all unique sources in the collection."""
     config = load_config()
     collection_name = config.get("retrieval", {}).get("collection_name", collection_name)
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vectorstore = Chroma(
         collection_name=collection_name,
-        embedding_function=embeddings,
+        embedding_function=_get_embeddings(),
         persist_directory="./chroma_db",
     )
     try:
