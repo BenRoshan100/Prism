@@ -1,4 +1,4 @@
-from server.eval.precision import compute_precision_at_k
+from server.eval.precision import compute_precision_at_k, run_batch_precision_eval_multi_k
 from server.eval.faithfulness import score_faithfulness
 
 
@@ -43,6 +43,20 @@ def test_precision_zero_score():
     }
     precision = compute_precision_at_k("test", chunks, ground_truth, k=2)
     assert precision == 0.0
+
+
+def test_multi_k_eval_returns_one_result_per_k(monkeypatch):
+    def fake_single(eval_pairs_path, k=5):
+        return {"mean_precision_at_k": round(k / 10, 4), "per_query_results": []}
+
+    monkeypatch.setattr("server.eval.precision.run_batch_precision_eval", fake_single)
+
+    results = run_batch_precision_eval_multi_k("dummy.json", ks=[1, 3, 5])
+
+    assert list(results.keys()) == ["precision@1", "precision@3", "precision@5"]
+    assert results["precision@1"]["mean_precision_at_k"] == 0.1
+    assert results["precision@3"]["mean_precision_at_k"] == 0.3
+    assert results["precision@5"]["mean_precision_at_k"] == 0.5
 
 
 def test_faithfulness_returns_dict_with_score():

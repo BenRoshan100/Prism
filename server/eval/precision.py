@@ -64,3 +64,14 @@ def run_batch_precision_eval(eval_pairs_path: str, k: int = 5) -> dict:
         "mean_precision_at_k": round(mean_precision, 4),
         "per_query_results": per_query_results,
     }
+
+
+def run_batch_precision_eval_multi_k(eval_pairs_path: str, ks: list[int]) -> dict:
+    """
+    Run precision evaluation for multiple K values.
+    Return a dict keyed by precision@K.
+    """
+    results = {}
+    for k in ks:
+        results[f"precision@{k}"] = run_batch_precision_eval(eval_pairs_path, k=k)
+    return results
