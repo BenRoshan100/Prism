@@ -1,6 +1,10 @@
 import os
+from typing import Any
 
 from dotenv import load_dotenv
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.documents import Document
+from langchain_core.callbacks.manager import CallbackManagerForRetrieverRun
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
@@ -11,7 +15,7 @@ load_dotenv()
 logger = setup_logger(__name__)
 
 
-def _get_embeddings():
+def _get_embeddings() -> OpenAIEmbeddings:
     return OpenAIEmbeddings(
         model="text-embedding-3-small",
         openai_api_key=os.environ.get("EURON_API_KEY"),
@@ -19,62 +23,110 @@ def _get_embeddings():
     )
 
 
-def get_retriever(collection_name: str = "finrag", k: int = 5):
-    """
-    Load existing ChromaDB collection.
-    Return LangChain retriever with k results.
-    """
+def get_vectorstore(collection_name: str = "finrag") -> Chroma:
+    """Load (or open) ChromaDB collection."""
     config = load_config()
     collection_name = config.get("retrieval", {}).get("collection_name", collection_name)
-    k = config.get("retrieval", {}).get("k", k)
-
-    vectorstore = Chroma(
+    return Chroma(
         collection_name=collection_name,
         embedding_function=_get_embeddings(),
         persist_directory="./chroma_db",
     )
 
-    return vectorstore.as_retriever(search_kwargs={"k": k})
+
+class HybridRetriever(BaseRetriever):
+    """Dense + BM25 sparse retrieval fused via RRF, then cross-encoder reranked."""
+
+    vectorstore: Any
+    dense_weight: float = 0.7
+    sparse_weight: float = 0.3
+    retrieve_k: int = 20
+    rerank_k: int = 5
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    def _dense_retrieve(self, query: str, k: int) -> list[dict]:
+        results = self.vectorstore.similarity_search_with_relevance_scores(query, k=k)
+        output = []
+        for doc, score in results:
+            output.append({
+                "content": doc.page_content,
+                "source": doc.metadata.get("source", ""),
+                "page": doc.metadata.get("page"),
+                "chunk_index": doc.metadata.get("chunk_index"),
+                "similarity_score": round(float(score), 4),
+            })
+        return output
+
+    def _rrf_fuse(self, dense: list[dict], sparse: list[dict]) -> list[dict]:
+        """Weighted Reciprocal Rank Fusion. k=60 is standard RRF constant."""
+        rrf_k = 60
+        scores: dict[str, float] = {}
+        docs_map: dict[str, dict] = {}
+
+        for rank, doc in enumerate(dense):
+            key = doc["content"][:120]
+            scores[key] = scores.get(key, 0.0) + self.dense_weight / (rrf_k + rank + 1)
+            docs_map[key] = doc
+
+        for rank, doc in enumerate(sparse):
+            key = doc["content"][:120]
+            scores[key] = scores.get(key, 0.0) + self.sparse_weight / (rrf_k + rank + 1)
+            if key not in docs_map:
+                docs_map[key] = doc
+
+        sorted_keys = sorted(scores, key=lambda x: scores[x], reverse=True)
+        result = []
+        for key in sorted_keys:
+            doc = dict(docs_map[key])
+            doc["rrf_score"] = round(scores[key], 6)
+            result.append(doc)
+        return result
+
+    def _get_relevant_documents(
+        self, query: str, *, _run_manager: CallbackManagerForRetrieverRun
+    ) -> list[Document]:
+        from server.bm25_index import get_index
+        from server.reranker import rerank
+
+        dense_results = self._dense_retrieve(query, k=self.retrieve_k)
+        sparse_results = get_index().search(query, k=self.retrieve_k)
+        fused = self._rrf_fuse(dense_results, sparse_results)
+        reranked = rerank(query, fused[: self.retrieve_k], top_k=self.rerank_k)
+
+        docs = []
+        for d in reranked:
+            metadata = {
+                "source": d.get("source", ""),
+                "page": d.get("page"),
+                "chunk_index": d.get("chunk_index"),
+                "similarity_score": d.get("similarity_score"),
+                "bm25_score": d.get("bm25_score"),
+                "rrf_score": d.get("rrf_score"),
+                "rerank_score": d.get("rerank_score"),
+            }
+            docs.append(Document(page_content=d["content"], metadata=metadata))
+        return docs
 
 
-def retrieve_with_scores(query: str, k: int = 5) -> list[dict]:
-    """
-    Return list of dicts with content, source, page, chunk_index, similarity_score.
-    """
+def get_retriever() -> HybridRetriever:
+    """Build and return HybridRetriever from current ChromaDB collection."""
     config = load_config()
-    collection_name = config.get("retrieval", {}).get("collection_name", "finrag")
-    k = config.get("retrieval", {}).get("k", k)
-
-    vectorstore = Chroma(
-        collection_name=collection_name,
-        embedding_function=_get_embeddings(),
-        persist_directory="./chroma_db",
+    retrieval_cfg = config.get("retrieval", {})
+    vectorstore = get_vectorstore()
+    return HybridRetriever(
+        vectorstore=vectorstore,
+        dense_weight=retrieval_cfg.get("dense_weight", 0.7),
+        sparse_weight=retrieval_cfg.get("sparse_weight", 0.3),
+        retrieve_k=retrieval_cfg.get("retrieve_k", 20),
+        rerank_k=retrieval_cfg.get("rerank_k", 5),
     )
-
-    results = vectorstore.similarity_search_with_relevance_scores(query, k=k)
-
-    output = []
-    for doc, score in results:
-        output.append({
-            "content": doc.page_content,
-            "source": doc.metadata.get("source", ""),
-            "page": doc.metadata.get("page", None),
-            "chunk_index": doc.metadata.get("chunk_index", None),
-            "similarity_score": round(score, 4),
-        })
-
-    return output
 
 
 def get_document_stats(collection_name: str = "finrag") -> list[dict]:
-    """Return list of {name, chunk_count} for all unique sources in the collection."""
-    config = load_config()
-    collection_name = config.get("retrieval", {}).get("collection_name", collection_name)
-    vectorstore = Chroma(
-        collection_name=collection_name,
-        embedding_function=_get_embeddings(),
-        persist_directory="./chroma_db",
-    )
+    """Return [{name, chunk_count}] for all unique sources in collection."""
+    vectorstore = get_vectorstore(collection_name)
     try:
         existing = vectorstore.get()
         if not existing or not existing["ids"]:
@@ -87,5 +139,4 @@ def get_document_stats(collection_name: str = "finrag") -> list[dict]:
 
 
 def has_documents(collection_name: str = "finrag") -> bool:
-    """Check if any documents exist in the collection."""
     return len(get_document_stats(collection_name)) > 0

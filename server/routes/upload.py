@@ -3,7 +3,8 @@ from pathlib import Path
 from fastapi import APIRouter, Request, UploadFile, File, HTTPException
 
 from server.ingest import ingest_files
-from server.retriever import get_document_stats, get_retriever
+from server.retriever import get_document_stats, get_retriever, get_vectorstore
+from server.bm25_index import build_from_vectorstore
 from server.chain import build_qa_chain
 from server.memory import create_memory
 from server.utils import setup_logger
@@ -39,7 +40,8 @@ async def upload_files(request: Request, files: list[UploadFile] = File(...)):
     # Run ingestion on uploaded files
     ingest_files(saved_paths)
 
-    # Rebuild chain with new data
+    # Rebuild BM25 index and chain with new data
+    build_from_vectorstore(get_vectorstore())
     request.app.state.retriever = get_retriever()
     request.app.state.memory = create_memory()
     request.app.state.chain = build_qa_chain(

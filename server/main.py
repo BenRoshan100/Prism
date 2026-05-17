@@ -1,4 +1,3 @@
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -6,7 +5,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from server.retriever import get_retriever, has_documents
+from server.retriever import get_retriever, get_vectorstore, has_documents
+from server.bm25_index import build_from_vectorstore
+from server.reranker import load_reranker
 from server.memory import create_memory
 from server.chain import build_qa_chain
 from server.utils import setup_logger
@@ -23,7 +24,12 @@ async def lifespan(app: FastAPI):
     app.state.chain = None
     app.state.eval_log = []
 
+    # Pre-load reranker to avoid cold-start latency on first query
+    load_reranker()
+
     if has_documents():
+        vectorstore = get_vectorstore()
+        build_from_vectorstore(vectorstore)
         app.state.retriever = get_retriever()
         app.state.chain = build_qa_chain(app.state.retriever, app.state.memory)
         logger.info("Chain initialized with existing documents")
