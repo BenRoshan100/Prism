@@ -56,6 +56,11 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(eval.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
 
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "version": "2.0.0"}
+
 # Serve React frontend build if it exists
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if frontend_dist.exists():

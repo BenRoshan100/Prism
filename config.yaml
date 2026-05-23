@@ -3,8 +3,11 @@ chunking:
   chunk_overlap: 50
 
 retrieval:
-  k: 5
   collection_name: "finrag"
+  dense_weight: 0.7
+  sparse_weight: 0.3
+  retrieve_k: 20
+  rerank_k: 5
 
 memory:
   max_token_limit: 2000

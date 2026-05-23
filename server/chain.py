@@ -69,12 +69,17 @@ def run_query(chain, question: str) -> dict:
             "source": doc.metadata.get("source", ""),
             "page": doc.metadata.get("page", None),
             "chunk_index": doc.metadata.get("chunk_index", None),
+            "similarity_score": doc.metadata.get("similarity_score"),
+            "bm25_score": doc.metadata.get("bm25_score"),
+            "rrf_score": doc.metadata.get("rrf_score"),
+            "rerank_score": doc.metadata.get("rerank_score"),
         })
 
     return {
         "answer": result.get("answer", ""),
         "source_documents": source_docs,
         "question": question,
+        "retrieval_method": "hybrid+rerank",
     }
 
 

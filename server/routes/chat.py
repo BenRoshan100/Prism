@@ -30,10 +30,11 @@ async def chat(request: Request, body: ChatRequest):
     # Score faithfulness
     faithfulness = score_faithfulness(result["answer"], result["source_documents"])
 
-    # Log to session eval
+    # Log to session eval (contexts stored for RAGAS eval)
     eval_log.append({
         "query": body.question,
         "answer": result["answer"],
+        "contexts": [doc["content"] for doc in result["source_documents"]],
         "faithfulness_score": faithfulness["score"],
         "reason": faithfulness["reason"],
     })
@@ -42,6 +43,7 @@ async def chat(request: Request, body: ChatRequest):
         "answer": result["answer"],
         "sources": result["source_documents"],
         "faithfulness": faithfulness,
+        "retrieval_method": result.get("retrieval_method", "hybrid+rerank"),
     }
 
 
