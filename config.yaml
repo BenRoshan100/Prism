@@ -6,7 +6,7 @@ retrieval:
   collection_name: "finrag"
   dense_weight: 0.7
   sparse_weight: 0.3
-  retrieve_k: 20
+  retrieve_k: 10
   rerank_k: 5
 
 memory:

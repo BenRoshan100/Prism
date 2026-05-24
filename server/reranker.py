@@ -24,7 +24,7 @@ def rerank(query: str, docs: list[dict], top_k: int = 5) -> list[dict]:
         return []
     model = load_reranker()
     pairs = [(query, d["content"]) for d in docs]
-    scores = model.predict(pairs)
+    scores = model.predict(pairs, batch_size=4)
     ranked = sorted(zip(scores, docs), key=lambda x: x[0], reverse=True)
     result = []
     for score, doc in ranked[:top_k]:
