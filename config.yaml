@@ -13,11 +13,9 @@ memory:
   max_token_limit: 2000
 
 llm:
-  # Euron API supports multiple providers via the same endpoint.
-  # Free: gpt-4.1-mini, gpt-4.1-nano, gemini-2.5-flash, llama-4-scout-17b-16e-instruct
-  # Premium: claude-sonnet-4, gpt-5, gemini-3-flash, o3, o4-mini
-  model: "gpt-4.1-mini"
-  base_url: "https://api.euron.one/api/v1/euri"
+  # Groq inference — fast open-weight models via GROQ_API_KEY
+  # Embeddings still use Euron API (EURON_API_KEY) — Groq has no embeddings endpoint
+  model: "llama-3.3-70b-versatile"
   max_tokens: 1000
   temperature: 0.1
 

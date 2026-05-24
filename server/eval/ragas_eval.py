@@ -5,7 +5,8 @@ from ragas import evaluate, EvaluationDataset, SingleTurnSample
 from ragas.metrics import Faithfulness, AnswerRelevancy
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_groq import ChatGroq
+from langchain_openai import OpenAIEmbeddings
 
 from server.utils import load_config, setup_logger
 
@@ -21,26 +22,22 @@ def _safe_round(val, decimals: int = 4):
         return None
 
 
-def _get_api_key() -> str:
-    return os.getenv("EURON_API_KEY", "")
-
-
 def _make_llm() -> LangchainLLMWrapper:
     config = load_config()
     llm_cfg = config.get("llm", {})
-    llm = ChatOpenAI(
+    llm = ChatGroq(
         model=llm_cfg["model"],
-        base_url=llm_cfg.get("base_url", "https://api.euron.one/api/v1/euri"),
-        api_key=_get_api_key(),
+        api_key=os.getenv("GROQ_API_KEY", ""),
         temperature=0.0,
     )
     return LangchainLLMWrapper(llm)
 
 
 def _make_embeddings() -> LangchainEmbeddingsWrapper:
+    # Groq has no embeddings endpoint — Euron API handles embeddings
     emb = OpenAIEmbeddings(
         model="text-embedding-3-small",
-        openai_api_key=_get_api_key(),
+        openai_api_key=os.getenv("EURON_API_KEY", ""),
         openai_api_base="https://api.euron.one/api/v1/euri",
     )
     return LangchainEmbeddingsWrapper(emb)

@@ -6,6 +6,7 @@ export default function ChatArea({ onEvalEntry, hasDocuments }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
 
   async function handleSend(e) {
     e.preventDefault();
@@ -13,11 +14,11 @@ export default function ChatArea({ onEvalEntry, hasDocuments }) {
 
     const question = input.trim();
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: question }]);
+    setMessages((prev) => [...prev, { role: "user", content: question, webSearch }]);
     setLoading(true);
 
     try {
-      const data = await sendMessage(question);
+      const data = await sendMessage(question, webSearch);
       setMessages((prev) => [
         ...prev,
         {
@@ -107,13 +108,31 @@ export default function ChatArea({ onEvalEntry, hasDocuments }) {
       {/* Input */}
       <form onSubmit={handleSend} className="p-4 bg-white border-t border-gray-100">
         <div className="flex gap-3 max-w-4xl mx-auto">
+          <button
+            type="button"
+            onClick={() => setWebSearch((v) => !v)}
+            disabled={loading || !hasDocuments}
+            title={webSearch ? "Web search ON — click to disable" : "Web search OFF — click to enable"}
+            className={`shrink-0 p-3 rounded-xl border text-sm font-medium transition-colors shadow-sm ${
+              webSearch
+                ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+            </svg>
+          </button>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
               hasDocuments
-                ? "Ask about your documents..."
+                ? webSearch
+                  ? "Ask anything — searching docs + web..."
+                  : "Ask about your documents..."
                 : "Upload documents first to start chatting"
             }
             className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 transition-shadow"
@@ -127,6 +146,11 @@ export default function ChatArea({ onEvalEntry, hasDocuments }) {
             Send
           </button>
         </div>
+        {webSearch && hasDocuments && (
+          <p className="text-center text-xs text-emerald-600 mt-2">
+            Web search active — answers will include live web context
+          </p>
+        )}
       </form>
     </div>
   );

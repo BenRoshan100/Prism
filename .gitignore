@@ -35,6 +35,10 @@ frontend/dist/
 # Eval results
 eval_results_*.json
 
+# Logs
+logs/
+uvicorn*.log
+
 # Claude Code — personal workstation files (career data, memory)
 CLAUDE.md
 .claude/

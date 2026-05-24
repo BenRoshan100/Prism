@@ -1,6 +1,6 @@
 import json
 
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 
 from server.utils import load_config, setup_logger
 
@@ -41,12 +41,11 @@ def score_faithfulness(answer: str, source_chunks: list[dict]) -> dict:
     prompt = FAITHFULNESS_PROMPT.format(context=context, answer=answer)
 
     try:
-        llm = ChatOpenAI(
+        llm = ChatGroq(
             model=llm_config["model"],
-            base_url=llm_config.get("base_url", "https://api.euron.one/api/v1/euri"),
             api_key=_get_api_key(),
             temperature=0.0,
-            extra_body={"max_tokens": 200},
+            max_tokens=200,
         )
 
         response = llm.invoke(prompt)
@@ -67,8 +66,8 @@ def score_faithfulness(answer: str, source_chunks: list[dict]) -> dict:
 
 
 def _get_api_key() -> str:
-    """Load Euron API key from environment."""
+    """Load Groq API key from environment."""
     import os
     from dotenv import load_dotenv
     load_dotenv()
-    return os.getenv("EURON_API_KEY", "")
+    return os.getenv("GROQ_API_KEY", "")

@@ -4,8 +4,8 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "/api",
 });
 
-export async function sendMessage(question) {
-  const { data } = await api.post("/chat", { question });
+export async function sendMessage(question, webSearch = false) {
+  const { data } = await api.post("/chat", { question, web_search: webSearch });
   return data;
 }
 
@@ -38,5 +38,15 @@ export async function uploadFiles(fileList) {
 
 export async function getDocuments() {
   const { data } = await api.get("/documents");
+  return data;
+}
+
+export async function deleteDocument(filename) {
+  const { data } = await api.delete(`/documents/${encodeURIComponent(filename)}`);
+  return data;
+}
+
+export async function runRagasEval(nPairs = 10) {
+  const { data } = await api.post("/eval/ragas", { n_pairs: nPairs });
   return data;
 }

@@ -14,8 +14,8 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 | Sparse retrieval | rank_bm25 (BM25Okapi) | Keyword-match retrieval for regulatory text |
 | Hybrid fusion | Weighted RRF (dense 0.7 + sparse 0.3) | Merge dense + sparse result lists |
 | Reranker | cross-encoder/ms-marco-MiniLM-L-6-v2 | Re-score top-20 → return top-5 |
-| Embeddings | Euron API (text-embedding-3-small) | API-based; avoids OOM on Render free tier |
-| LLM | Euron API (gpt-4.1-mini) via OpenAI SDK | Answer generation |
+| Embeddings | Euron API (text-embedding-3-small) | API-based; avoids OOM on Render free tier. Groq has no embeddings endpoint. |
+| LLM | Groq (llama-3.3-70b-versatile) via langchain-groq | Fast open-weight inference; OpenAI-compatible |
 | Chunking | LangChain ParentDocumentRetriever | Child 200-char indexed, parent 800-char sent to LLM |
 | Memory | ConversationBufferWindowMemory (k=10) | Last 10 conversation turns |
 | Chain | ConversationalRetrievalChain | LangChain orchestration |
@@ -33,7 +33,7 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 ### Ingestion
 1. `run_ingest.py` or `POST /api/upload` → load PDFs/TXT/CSV
 2. `ParentDocumentRetriever`: split into 800-char parent + 200-char child chunks
-3. Embed child chunks via Euron API → store in ChromaDB
+3. Embed child chunks via Euron API (text-embedding-3-small) → store in ChromaDB
 4. Store parent chunks in `InMemoryStore`
 5. Build BM25 index over child chunk corpus
 
@@ -48,7 +48,7 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 8. Response includes: answer, sources (with scores), faithfulness, retrieval_method
 
 ## Key design decisions
-- **API embeddings over local**: sentence-transformers ~400MB OOMs on Render 512MB free tier; Euron API ~0MB
+- **API embeddings over local**: sentence-transformers ~400MB OOMs on Render 512MB free tier; Euron API ~0MB. Groq used for LLM; Euron retained for embeddings (Groq exposes no embeddings endpoint).
 - **ParentDocumentRetriever**: small chunks improve retrieval precision; large parent chunks improve answer faithfulness
 - **Cross-encoder reranker**: bi-encoder (ChromaDB) is fast but approximate; cross-encoder is slower but more accurate on top-20 pool
 - **BM25 weight 0.3**: regulatory text has exact keyword matches (section numbers); sparse retrieval catches what dense misses

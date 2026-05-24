@@ -4,5 +4,7 @@ services:
     runtime: docker
     plan: free
     envVars:
+      - key: GROQ_API_KEY
+        sync: false
       - key: EURON_API_KEY
         sync: false

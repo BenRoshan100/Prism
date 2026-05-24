@@ -1,4 +1,7 @@
+import { useState } from "react";
 import FileUpload from "./FileUpload";
+import EvalPanel from "./EvalPanel";
+import { deleteDocument } from "../api";
 
 function TrafficLight({ faithfulnessMean }) {
   let color, label;
@@ -34,6 +37,21 @@ export default function Sidebar({
   onNewConversation,
   evalLog,
 }) {
+  const [deletingDoc, setDeletingDoc] = useState(null);
+
+  async function handleDelete(docName) {
+    if (!window.confirm(`Remove "${docName}" from the index?`)) return;
+    setDeletingDoc(docName);
+    try {
+      const result = await deleteDocument(docName);
+      setDocuments(result.documents);
+    } catch (e) {
+      alert(`Delete failed: ${e?.response?.data?.detail || e.message}`);
+    } finally {
+      setDeletingDoc(null);
+    }
+  }
+
   const faithfulnessScores = evalLog.filter((e) => e.faithfulness_score > 0);
   const faithfulnessMean =
     faithfulnessScores.length > 0
@@ -74,10 +92,27 @@ export default function Sidebar({
                   key={i}
                   className="flex items-center justify-between text-sm bg-white rounded-lg px-3 py-2 shadow-xs"
                 >
-                  <span className="text-gray-700 truncate">{doc.name}</span>
+                  <span className="text-gray-700 truncate flex-1 min-w-0">{doc.name}</span>
                   <span className="text-indigo-400 shrink-0 ml-2 text-xs font-medium">
                     {doc.chunk_count}
                   </span>
+                  <button
+                    onClick={() => handleDelete(doc.name)}
+                    disabled={deletingDoc === doc.name}
+                    title="Remove document"
+                    className="ml-2 shrink-0 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40"
+                  >
+                    {deletingDoc === doc.name ? (
+                      <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zm-1 6a1 1 0 112 0v5a1 1 0 11-2 0V8zm4 0a1 1 0 112 0v5a1 1 0 11-2 0V8z" clipRule="evenodd"/>
+                      </svg>
+                    )}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -131,6 +166,9 @@ export default function Sidebar({
             <TrafficLight faithfulnessMean={faithfulnessMean} />
           </div>
         </div>
+
+        {/* RAGAS Eval */}
+        <EvalPanel evalLogLength={evalLog.length} />
       </div>
     </aside>
   );

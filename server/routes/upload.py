@@ -58,3 +58,44 @@ async def list_documents():
     """Return list of uploaded documents with chunk counts."""
     docs = get_document_stats()
     return {"documents": docs}
+
+
+@router.delete("/documents/{filename}")
+async def delete_document(filename: str, request: Request):
+    """
+    Remove all chunks for a document from ChromaDB, delete the raw file,
+    then rebuild BM25 index and chain.
+    """
+    vectorstore = get_vectorstore()
+
+    # Find all chunk IDs for this source
+    try:
+        result = vectorstore.get(where={"source": filename})
+        chunk_ids = result.get("ids", [])
+    except Exception as e:
+        raise HTTPException(500, f"Failed to query ChromaDB: {e}")
+
+    if not chunk_ids:
+        raise HTTPException(404, f"Document '{filename}' not found in index")
+
+    # Delete from ChromaDB
+    vectorstore.delete(ids=chunk_ids)
+    logger.info(f"Deleted {len(chunk_ids)} chunks for '{filename}' from ChromaDB")
+
+    # Delete raw file if it exists
+    file_path = UPLOAD_DIR / filename
+    if file_path.exists():
+        file_path.unlink()
+        logger.info(f"Deleted file: {file_path}")
+
+    # Rebuild BM25 + chain
+    build_from_vectorstore(get_vectorstore())
+    request.app.state.retriever = get_retriever()
+    request.app.state.memory = create_memory()
+    request.app.state.chain = build_qa_chain(
+        request.app.state.retriever, request.app.state.memory
+    )
+    logger.info("Chain rebuilt after document deletion")
+
+    docs = get_document_stats()
+    return {"deleted": filename, "chunks_removed": len(chunk_ids), "documents": docs}

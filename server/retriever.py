@@ -85,7 +85,7 @@ class HybridRetriever(BaseRetriever):
         return result
 
     def _get_relevant_documents(
-        self, query: str, *, _run_manager: CallbackManagerForRetrieverRun
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> list[Document]:
         from server.bm25_index import get_index
         from server.reranker import rerank
@@ -122,6 +122,25 @@ def get_retriever() -> HybridRetriever:
         retrieve_k=retrieval_cfg.get("retrieve_k", 20),
         rerank_k=retrieval_cfg.get("rerank_k", 5),
     )
+
+
+def retrieve_with_scores(query: str, k: int = 5) -> list[dict]:
+    """Compatibility shim for precision eval — returns top-k chunks as dicts."""
+    retriever = get_retriever()
+    retriever.rerank_k = k
+    docs = retriever.invoke(query)
+    return [
+        {
+            "content": doc.page_content,
+            "source": doc.metadata.get("source", ""),
+            "page": doc.metadata.get("page"),
+            "similarity_score": doc.metadata.get("similarity_score"),
+            "bm25_score": doc.metadata.get("bm25_score"),
+            "rrf_score": doc.metadata.get("rrf_score"),
+            "rerank_score": doc.metadata.get("rerank_score"),
+        }
+        for doc in docs
+    ]
 
 
 def get_document_stats(collection_name: str = "finrag") -> list[dict]:

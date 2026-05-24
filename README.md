@@ -47,7 +47,7 @@ If retrieval degrades, you see it before the user does.
                        │  ┌───────────────────────────────┐  │
                        │  │  Retrieve top-K + score       │  │
                        │  │  ConversationalRetrievalChain │  │
-                       │  │  LLM: Euron (gpt-4.1-mini)    │  │
+                       │  │  LLM: Groq (llama-3.3-70b)    │  │
                        │  └──────────────┬────────────────┘  │
                        │                 ▼                   │
                        │  ┌───────────────────────────────┐  │
@@ -67,7 +67,7 @@ If retrieval degrades, you see it before the user does.
 | **Backend** | FastAPI + Uvicorn |
 | **Vector store** | ChromaDB (persistent, on-disk) |
 | **Embeddings** | Euron API (`text-embedding-3-small`) — API-based to fit Render free tier |
-| **LLM** | Euron API (`gpt-4.1-mini`) via OpenAI-compatible SDK |
+| **LLM** | Groq (`llama-3.3-70b-versatile`) via `langchain-groq` |
 | **Orchestration** | LangChain `ConversationalRetrievalChain` |
 | **Memory** | `ConversationBufferWindowMemory` (k=10 turns) |
 | **Frontend** | React 19 + Vite + Tailwind CSS v4 |
@@ -138,7 +138,8 @@ finrag/
 ### Prerequisites
 - Python 3.11+
 - Node.js 20+
-- A Euron API key (https://euron.one) — free tier works
+- A Groq API key (https://console.groq.com) — free tier works
+- A Euron API key (https://euron.one) — used for embeddings only
 
 ### Backend
 
@@ -153,8 +154,9 @@ venv\Scripts\activate       # Windows
 # source venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
 
-# Env var
-echo EURON_API_KEY=your_key_here > .env
+# Env vars
+cp .env.example .env
+# Then fill in GROQ_API_KEY and EURON_API_KEY in .env
 
 # Ingest sample documents
 python scripts/run_ingest.py --data-dir sample_data
@@ -205,7 +207,7 @@ The app is split across two free-tier platforms:
 ### Backend on Render
 1. Push to GitHub
 2. Render → New Web Service → connect repo (runtime: Docker)
-3. Set env var: `EURON_API_KEY`
+3. Set env vars: `GROQ_API_KEY` (LLM) and `EURON_API_KEY` (embeddings)
 4. Deploy
 
 ### Frontend on Vercel

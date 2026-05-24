@@ -5,6 +5,7 @@
 | Date | Decision | Rationale | Status |
 |------|----------|-----------|--------|
 | 2026-05 | Euron API for embeddings (not local sentence-transformers) | Local model ~400MB → OOM on Render 512MB free tier | Active |
+| 2026-05-24 | Groq (llama-3.3-70b-versatile) for LLM; Euron retained for embeddings | Groq: faster inference, open-weight model. Euron kept for embeddings — Groq has no embeddings endpoint. | Active |
 | 2026-05 | Render (Docker) over Railway for backend | Free tier RAM fit confirmed: embeddings ~150MB + reranker ~85MB = ~250MB total | Active |
 | 2026-05 | ParentDocumentRetriever (child 200 / parent 800) | Better faithfulness: small chunks retrieved precisely, large chunks give LLM full context | Active |
 | 2026-05 | BM25 weight 0.3 in RRF fusion | Regulatory text has exact keyword matches; sparse recall is complementary, not dominant | Active |

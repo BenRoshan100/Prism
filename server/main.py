@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
+import time
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -10,8 +11,9 @@ from server.bm25_index import build_from_vectorstore
 from server.reranker import load_reranker
 from server.memory import create_memory
 from server.chain import build_qa_chain
-from server.utils import setup_logger
+from server.utils import configure_logging, setup_logger
 
+configure_logging()
 logger = setup_logger(__name__)
 
 
@@ -48,6 +50,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next) -> Response:
+    start = time.perf_counter()
+    response = await call_next(request)
+    ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "%s %s  %d  %.0fms",
+        request.method,
+        request.url.path,
+        response.status_code,
+        ms,
+    )
+    return response
 
 # Import and include route modules
 from server.routes import chat, eval, upload  # noqa: E402
