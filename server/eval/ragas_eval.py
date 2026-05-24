@@ -1,13 +1,6 @@
 import os
 from dotenv import load_dotenv
 
-from ragas import evaluate, EvaluationDataset, SingleTurnSample
-from ragas.metrics import Faithfulness, AnswerRelevancy
-from ragas.llms import LangchainLLMWrapper
-from ragas.embeddings import LangchainEmbeddingsWrapper
-from langchain_groq import ChatGroq
-from langchain_openai import OpenAIEmbeddings
-
 from server.utils import load_config, setup_logger
 
 load_dotenv()
@@ -15,32 +8,10 @@ logger = setup_logger(__name__)
 
 
 def _safe_round(val, decimals: int = 4):
-    """Round float or return None if val is None/NaN."""
     try:
         return round(float(val), decimals)
     except (TypeError, ValueError):
         return None
-
-
-def _make_llm() -> LangchainLLMWrapper:
-    config = load_config()
-    llm_cfg = config.get("llm", {})
-    llm = ChatGroq(
-        model=llm_cfg["model"],
-        api_key=os.getenv("GROQ_API_KEY", ""),
-        temperature=0.0,
-    )
-    return LangchainLLMWrapper(llm)
-
-
-def _make_embeddings() -> LangchainEmbeddingsWrapper:
-    # Groq has no embeddings endpoint — Euron API handles embeddings
-    emb = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=os.getenv("EURON_API_KEY", ""),
-        openai_api_base="https://api.euron.one/api/v1/euri",
-    )
-    return LangchainEmbeddingsWrapper(emb)
 
 
 def run_ragas_eval(eval_log: list[dict], n_pairs: int = 10) -> dict:
@@ -58,6 +29,15 @@ def run_ragas_eval(eval_log: list[dict], n_pairs: int = 10) -> dict:
         dict with faithfulness, answer_relevancy, context_precision (null),
         context_recall (null), per_query, sample_count
     """
+    # Lazy imports — ragas pulls langchain_community.chat_models.vertexai at module level
+    # which does not exist in newer langchain-community. Import only when actually called.
+    from ragas import evaluate, EvaluationDataset, SingleTurnSample
+    from ragas.metrics import Faithfulness, AnswerRelevancy
+    from ragas.llms import LangchainLLMWrapper
+    from ragas.embeddings import LangchainEmbeddingsWrapper
+    from langchain_groq import ChatGroq
+    from langchain_openai import OpenAIEmbeddings
+
     pairs = [p for p in eval_log if p.get("contexts")]
     pairs = pairs[-n_pairs:]
 
@@ -72,6 +52,20 @@ def run_ragas_eval(eval_log: list[dict], n_pairs: int = 10) -> dict:
             "note": "No session pairs with contexts found. Ask questions first.",
         }
 
+    config = load_config()
+    llm_cfg = config.get("llm", {})
+    ragas_llm = LangchainLLMWrapper(
+        ChatGroq(model=llm_cfg["model"], api_key=os.getenv("GROQ_API_KEY", ""), temperature=0.0)
+    )
+    # Groq has no embeddings endpoint — Euron API handles embeddings
+    ragas_emb = LangchainEmbeddingsWrapper(
+        OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            openai_api_key=os.getenv("EURON_API_KEY", ""),
+            openai_api_base="https://api.euron.one/api/v1/euri",
+        )
+    )
+
     samples = [
         SingleTurnSample(
             user_input=p["query"],
@@ -82,9 +76,6 @@ def run_ragas_eval(eval_log: list[dict], n_pairs: int = 10) -> dict:
     ]
 
     dataset = EvaluationDataset(samples=samples)
-    ragas_llm = _make_llm()
-    ragas_emb = _make_embeddings()
-
     metrics = [
         Faithfulness(llm=ragas_llm),
         AnswerRelevancy(llm=ragas_llm, embeddings=ragas_emb),
