@@ -1,3 +1,5 @@
+import gc
+
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 
@@ -68,6 +70,8 @@ async def chat(request: Request, body: ChatRequest):
     retrieval_method = result.get("retrieval_method", "hybrid+rerank")
     if body.web_search and web_sources:
         retrieval_method += "+web"
+
+    gc.collect()
 
     return {
         "answer": result["answer"],

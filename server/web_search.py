@@ -5,7 +5,10 @@ from server.utils import setup_logger
 logger = setup_logger(__name__)
 
 
-def search_web(query: str, max_results: int = 3) -> list[dict]:
+MAX_CONTENT_CHARS = 800  # Truncate per-result content to limit memory on Render 512MB
+
+
+def search_web(query: str, max_results: int = 2) -> list[dict]:
     """
     Search the web via Tavily. Returns [{content, url, title, source, source_type}].
     Returns empty list if TAVILY_API_KEY not set or search fails.
@@ -27,7 +30,7 @@ def search_web(query: str, max_results: int = 3) -> list[dict]:
         results = []
         for r in response.get("results", []):
             results.append({
-                "content": r.get("content", ""),
+                "content": r.get("content", "")[:MAX_CONTENT_CHARS],
                 "url": r.get("url", ""),
                 "title": r.get("title", ""),
                 "source": r.get("url", ""),
