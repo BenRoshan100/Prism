@@ -8,3 +8,5 @@ services:
         sync: false
       - key: EURON_API_KEY
         sync: false
+      - key: TAVILY_API_KEY
+        sync: false
