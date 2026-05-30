@@ -9,7 +9,7 @@ RUN pip install torch --index-url https://download.pytorch.org/whl/cpu --no-cach
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download cross-encoder reranker at build time to avoid cold-start timeout
-RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')"
+RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cross-encoder/ms-marco-TinyBERT-L-2-v2')"
 
 COPY server/ server/
 COPY config.yaml .

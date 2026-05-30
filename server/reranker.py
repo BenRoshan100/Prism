@@ -4,7 +4,7 @@ from server.utils import setup_logger
 
 logger = setup_logger(__name__)
 
-MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+MODEL_NAME = "cross-encoder/ms-marco-TinyBERT-L-2-v2"
 _model: CrossEncoder | None = None
 
 
