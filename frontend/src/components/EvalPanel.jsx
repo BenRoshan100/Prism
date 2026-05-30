@@ -44,11 +44,18 @@ function ScoreBar({ value }) {
 export default function EvalPanel() {
   return (
     <div className="bg-gray-50/80 rounded-xl p-3.5">
-      <div className="flex items-center justify-between mb-2.5">
+      <div className="flex items-center gap-1.5 mb-2.5">
         <h3 className="text-xs font-semibold text-indigo-500 uppercase tracking-wider">
           RAGAS Benchmark
         </h3>
-        <span className="text-xs text-gray-400">Sample corpus</span>
+        <span className="group relative">
+          <svg className="w-3 h-3 text-gray-400 cursor-help" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <span className="pointer-events-none absolute bottom-5 left-0 z-10 w-56 rounded-lg bg-gray-800 px-2.5 py-2 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+            RAGAS (Retrieval Augmented Generation Assessment) scores measuring answer quality across 4 dimensions — faithfulness, relevancy, and retrieval precision/recall.
+          </span>
+        </span>
       </div>
 
       <div className="space-y-2">
@@ -70,9 +77,6 @@ export default function EvalPanel() {
         ))}
       </div>
 
-      <p className="text-xs text-gray-400 italic mt-2.5">
-        Pre-computed on 3-doc sample corpus (BF Q3, NPCI UPI, RBI FY2024).
-      </p>
     </div>
   );
 }
