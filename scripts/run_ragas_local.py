@@ -32,23 +32,32 @@ EVAL_PAIRS_PATH = Path(__file__).resolve().parent.parent / "data" / "ground_trut
 
 
 def _build_retriever_and_llm():
-    from server.bm25_index import get_index, build_index
+    from server.bm25_index import build_from_vectorstore
     from server.reranker import load_reranker
     from server.retriever import HybridRetriever
-    from server.ingest import load_vectorstore
-    from server.utils import load_config
+    from server.utils import load_config, setup_logger
+    from langchain_chroma import Chroma
+    from langchain_openai import OpenAIEmbeddings
+    import os
 
     config = load_config()
     print("Loading vectorstore...")
-    vectorstore = load_vectorstore()
-    if vectorstore is None:
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=os.getenv("EURON_API_KEY", ""),
+        openai_api_base="https://api.euron.one/api/v1/euri",
+    )
+    vectorstore = Chroma(
+        collection_name="finrag",
+        embedding_function=embeddings,
+        persist_directory="./chroma_db",
+    )
+    if vectorstore._collection.count() == 0:
         print("ERROR: ChromaDB empty. Run scripts/run_ingest.py first.")
         sys.exit(1)
 
     print("Building BM25 index...")
-    all_docs = vectorstore.get()
-    texts = all_docs.get("documents", [])
-    build_index(texts)
+    build_from_vectorstore(vectorstore)
 
     print("Loading reranker...")
     load_reranker()
@@ -98,6 +107,13 @@ def main():
     args = parser.parse_args()
 
     print("=== FinRAG RAGAS Local Benchmark ===\n")
+
+    # Verify required API keys are set
+    missing = [k for k in ("GROQ_API_KEY", "EURON_API_KEY") if not os.getenv(k)]
+    if missing:
+        print(f"ERROR: Missing env vars: {', '.join(missing)}")
+        print("Check your .env file exists at project root with these keys set.")
+        sys.exit(1)
 
     # Check ragas installed
     try:
@@ -164,15 +180,20 @@ def main():
         ],
     )
 
-    def safe_round(v):
+    def safe_mean(series):
         try:
-            return round(float(v), 4)
-        except (TypeError, ValueError):
+            v = series.dropna().mean()
+            return round(float(v), 4) if v == v else None  # nan check
+        except Exception:
             return None
 
+    scores_df = results.to_pandas()
+    print("\nPer-sample scores:")
+    print(scores_df[["faithfulness", "answer_relevancy"]].to_string())
+
     output = {
-        "faithfulness": safe_round(results["faithfulness"]),
-        "answer_relevancy": safe_round(results["answer_relevancy"]),
+        "faithfulness": safe_mean(scores_df["faithfulness"]) if "faithfulness" in scores_df.columns else None,
+        "answer_relevancy": safe_mean(scores_df["answer_relevancy"]) if "answer_relevancy" in scores_df.columns else None,
         "context_precision": None,
         "context_recall": None,
         "sample_count": len(samples),

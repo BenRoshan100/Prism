@@ -1,9 +1,9 @@
 {
-  "faithfulness": 0.87,
-  "answer_relevancy": 0.91,
-  "context_precision": 0.74,
-  "context_recall": 0.68,
+  "faithfulness": 1.0,
+  "answer_relevancy": 0.9008,
+  "context_precision": null,
+  "context_recall": null,
   "sample_count": 10,
-  "computed_at": null,
-  "note": "Run scripts/run_ragas_local.py to update these values from your local corpus."
+  "computed_at": "2026-05-30T20:04:39",
+  "note": "context_precision and context_recall require labeled ground_truth answers in eval_pairs.json"
 }
