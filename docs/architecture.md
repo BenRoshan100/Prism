@@ -13,14 +13,14 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 | Vector store | ChromaDB (persistent) | Dense embedding storage and retrieval |
 | Sparse retrieval | rank_bm25 (BM25Okapi) | Keyword-match retrieval for regulatory text |
 | Hybrid fusion | Weighted RRF (dense 0.7 + sparse 0.3) | Merge dense + sparse result lists |
-| Reranker | cross-encoder/ms-marco-MiniLM-L-6-v2 | Re-score top-20 → return top-5 |
+| Reranker | cross-encoder/ms-marco-TinyBERT-L-2-v2 | Re-score top-10 → return top-5 (~17MB vs 85MB; OOM prevention on 512MB Render) |
 | Embeddings | Euron API (text-embedding-3-small) | API-based; avoids OOM on Render free tier. Groq has no embeddings endpoint. |
 | LLM | Groq (llama-3.3-70b-versatile) via langchain-groq | Fast open-weight inference; OpenAI-compatible |
 | Chunking | LangChain ParentDocumentRetriever | Child 200-char indexed, parent 800-char sent to LLM |
 | Memory | ConversationBufferWindowMemory (k=10) | Last 10 conversation turns |
 | Chain | ConversationalRetrievalChain | LangChain orchestration |
-| Eval (primary) | RAGAS | faithfulness, answer_relevancy, context_precision, context_recall |
-| Eval (secondary) | Custom LLM-as-Judge | 1–5 faithfulness score per turn (retained from v1) |
+| Eval (primary) | RAGAS benchmark (pre-computed, JSON) | faithfulness 1.0, answer_relevancy 0.90 — run locally via `scripts/run_ragas_local.py`, committed to `frontend/src/data/ragas_benchmark.json` |
+| Eval (secondary) | Custom LLM-as-Judge | 1–5 faithfulness score per turn (per-message badge in UI) |
 | Eval (retrieval) | Precision@K | Ground-truth chunk matching |
 | Observability | LangSmith | Traces all LLM + retrieval calls via LANGCHAIN_TRACING_V2=true |
 | Document parsing | LlamaParse (primary), pypdf (fallback) | PDF extraction |
@@ -52,7 +52,8 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 - **ParentDocumentRetriever**: small chunks improve retrieval precision; large parent chunks improve answer faithfulness
 - **Cross-encoder reranker**: bi-encoder (ChromaDB) is fast but approximate; cross-encoder is slower but more accurate on top-20 pool
 - **BM25 weight 0.3**: regulatory text has exact keyword matches (section numbers); sparse retrieval catches what dense misses
-- **RAGAS as primary eval**: 4 named metrics that interviewers recognise; custom scorer retained as supplementary
+- **RAGAS benchmark pre-computed locally**: `nest_asyncio` cannot patch `uvloop` (used by uvicorn on Render Linux), making live RAGAS eval impossible on prod. Run `scripts/run_ragas_local.py` locally, commit JSON results, Vercel builds dashboard from file.
+- **TinyBERT-L-2-v2 reranker**: MiniLM-L-6-v2 (~85MB) + base memory (~250MB) + Tavily content + LLM call exceeded Render 512MB on web queries. TinyBERT-L-2-v2 is ~17MB — same ranking quality at demo corpus scale.
 
 ## Known limitations
 - InMemoryStore for parent chunks: does not survive server restart (re-ingest required)
