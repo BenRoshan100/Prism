@@ -57,12 +57,22 @@ function FaithfulnessBadge({ faithfulness }) {
   }
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${bgColor} ${textColor}`}
-      title={reason}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-      {label} ({score}/5)
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${bgColor} ${textColor}`}
+        title={reason}
+      >
+        <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+        {label} ({score}/5)
+      </span>
+      <span className="group relative">
+        <svg className="w-3.5 h-3.5 text-gray-400 cursor-help" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+        </svg>
+        <span className="pointer-events-none absolute bottom-6 left-0 z-10 w-56 rounded-lg bg-gray-800 px-2.5 py-2 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+          LLM-as-judge score (1–5). Measures how grounded the answer is in the retrieved documents. 4–5 = faithful, 3 = partially supported, 1–2 = hallucination risk.
+        </span>
+      </span>
     </span>
   );
 }

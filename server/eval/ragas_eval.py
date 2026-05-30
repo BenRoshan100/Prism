@@ -29,12 +29,24 @@ def run_ragas_eval(eval_log: list[dict], n_pairs: int = 10) -> dict:
         dict with faithfulness, answer_relevancy, context_precision (null),
         context_recall (null), per_query, sample_count
     """
-    # Lazy imports — ragas pulls langchain_community.chat_models.vertexai at module level
-    # which does not exist in newer langchain-community. Import only when actually called.
-    from ragas import evaluate, EvaluationDataset, SingleTurnSample
-    from ragas.metrics import Faithfulness, AnswerRelevancy
-    from ragas.llms import LangchainLLMWrapper
-    from ragas.embeddings import LangchainEmbeddingsWrapper
+    # Lazy imports — ragas 0.1.x pulls langchain_community.chat_models.vertexai at module
+    # level, removed in langchain-community 0.3.x. Pin ragas>=0.2.0 in requirements.txt.
+    try:
+        from ragas import evaluate, EvaluationDataset, SingleTurnSample
+        from ragas.metrics import Faithfulness, AnswerRelevancy
+        from ragas.llms import LangchainLLMWrapper
+        from ragas.embeddings import LangchainEmbeddingsWrapper
+    except (ImportError, ModuleNotFoundError) as e:
+        logger.error("RAGAS import failed (dependency conflict): %s", e)
+        return {
+            "faithfulness": None,
+            "answer_relevancy": None,
+            "context_precision": None,
+            "context_recall": None,
+            "per_query": [],
+            "sample_count": 0,
+            "error": f"RAGAS unavailable: {e}. Pin ragas>=0.2.0,<0.3.0 in requirements.txt.",
+        }
     from langchain_groq import ChatGroq
     from langchain_openai import OpenAIEmbeddings
 
