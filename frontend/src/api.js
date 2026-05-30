@@ -46,7 +46,3 @@ export async function deleteDocument(filename) {
   return data;
 }
 
-export async function runRagasEval(nPairs = 10) {
-  const { data } = await api.post("/eval/ragas", { n_pairs: nPairs });
-  return data;
-}

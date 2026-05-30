@@ -1,17 +1,11 @@
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
 
 from server.eval.precision import run_batch_precision_eval
-from server.eval.ragas_eval import run_ragas_eval
 from server.utils import load_config, setup_logger
 
 logger = setup_logger(__name__)
 
 router = APIRouter()
-
-
-class RagasRequest(BaseModel):
-    n_pairs: int = 10
 
 
 @router.get("/eval/session")
@@ -32,15 +26,4 @@ async def run_precision_eval():
     k = eval_config.get("precision_k", 5)
 
     results = run_batch_precision_eval(ground_truth_path, k=k)
-    return results
-
-
-@router.post("/eval/ragas")
-async def run_ragas_evaluation(request: Request, body: RagasRequest):
-    """
-    Run RAGAS on last n_pairs from session.
-    Returns faithfulness, answer_relevancy (context_precision/recall require ground_truth).
-    """
-    eval_log = request.app.state.eval_log
-    results = run_ragas_eval(eval_log, n_pairs=body.n_pairs)
     return results

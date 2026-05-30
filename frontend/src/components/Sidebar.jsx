@@ -167,8 +167,8 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* RAGAS Eval */}
-        <EvalPanel evalLogLength={evalLog.length} />
+        {/* RAGAS Benchmark */}
+        <EvalPanel />
       </div>
     </aside>
   );
