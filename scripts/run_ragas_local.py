@@ -1,0 +1,195 @@
+"""
+Run RAGAS evaluation locally and write results to frontend/src/data/ragas_benchmark.json.
+
+Usage:
+    python scripts/run_ragas_local.py
+    python scripts/run_ragas_local.py --n 10
+
+Prerequisites:
+    1. pip install ragas>=0.2.0,<0.3.0 datasets  (not in requirements.txt — server doesn't need it)
+    2. .env with GROQ_API_KEY + EURON_API_KEY
+    3. Run scripts/run_ingest.py first so ChromaDB is populated
+
+RAGAS works locally because Python uses the default asyncio event loop (not uvloop).
+On Render (Linux uvicorn), nest_asyncio can't patch uvloop — that's why it's removed from prod.
+"""
+
+import argparse
+import json
+import sys
+from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from dotenv import load_dotenv
+load_dotenv()
+
+import os
+
+OUTPUT_PATH = Path(__file__).resolve().parent.parent / "frontend" / "src" / "data" / "ragas_benchmark.json"
+EVAL_PAIRS_PATH = Path(__file__).resolve().parent.parent / "data" / "ground_truth" / "eval_pairs.json"
+
+
+def _build_retriever_and_llm():
+    from server.bm25_index import get_index, build_index
+    from server.reranker import load_reranker
+    from server.retriever import HybridRetriever
+    from server.ingest import load_vectorstore
+    from server.utils import load_config
+
+    config = load_config()
+    print("Loading vectorstore...")
+    vectorstore = load_vectorstore()
+    if vectorstore is None:
+        print("ERROR: ChromaDB empty. Run scripts/run_ingest.py first.")
+        sys.exit(1)
+
+    print("Building BM25 index...")
+    all_docs = vectorstore.get()
+    texts = all_docs.get("documents", [])
+    build_index(texts)
+
+    print("Loading reranker...")
+    load_reranker()
+
+    retriever = HybridRetriever(
+        vectorstore=vectorstore,
+        dense_weight=config.get("retrieval", {}).get("dense_weight", 0.7),
+        sparse_weight=config.get("retrieval", {}).get("sparse_weight", 0.3),
+        retrieve_k=config.get("retrieval", {}).get("retrieve_k", 10),
+        rerank_k=config.get("retrieval", {}).get("rerank_k", 5),
+    )
+    return retriever, config
+
+
+def _build_llm(config):
+    from langchain_groq import ChatGroq
+    return ChatGroq(
+        model=config["llm"]["model"],
+        api_key=os.getenv("GROQ_API_KEY", ""),
+        temperature=0.1,
+        max_tokens=500,
+    )
+
+
+def _answer_query(llm, retriever, query: str) -> tuple[str, list[str]]:
+    """Retrieve context + generate answer. Returns (answer, [context_strings])."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    docs = retriever.invoke(query)
+    contexts = [d.page_content for d in docs]
+    ctx_text = "\n\n".join(f"[Doc {i+1}]\n{c}" for i, c in enumerate(contexts))
+
+    messages = [
+        SystemMessage(content=(
+            "You are a fintech research assistant. Answer using only the provided context. "
+            "Be concise. Cite which doc supports your answer."
+        )),
+        HumanMessage(content=f"Context:\n{ctx_text}\n\nQuestion: {query}\n\nAnswer:"),
+    ]
+    response = llm.invoke(messages)
+    return response.content.strip(), contexts
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run RAGAS eval locally and save to JSON")
+    parser.add_argument("--n", type=int, default=10, help="Number of eval pairs to run (default 10)")
+    args = parser.parse_args()
+
+    print("=== FinRAG RAGAS Local Benchmark ===\n")
+
+    # Check ragas installed
+    try:
+        from ragas import evaluate, EvaluationDataset, SingleTurnSample
+        from ragas.metrics import Faithfulness, AnswerRelevancy
+        from ragas.llms import LangchainLLMWrapper
+        from ragas.embeddings import LangchainEmbeddingsWrapper
+        from langchain_openai import OpenAIEmbeddings
+    except ImportError as e:
+        print(f"ERROR: {e}")
+        print("Install with: pip install 'ragas>=0.2.0,<0.3.0' datasets")
+        sys.exit(1)
+
+    retriever, config = _build_retriever_and_llm()
+    llm = _build_llm(config)
+
+    with open(EVAL_PAIRS_PATH) as f:
+        eval_pairs = json.load(f)
+
+    pairs = eval_pairs[:args.n]
+    print(f"Running {len(pairs)} queries...\n")
+
+    samples = []
+    for i, pair in enumerate(pairs):
+        query = pair["query"]
+        print(f"[{i+1}/{len(pairs)}] {query[:70]}")
+        try:
+            answer, contexts = _answer_query(llm, retriever, query)
+            samples.append(SingleTurnSample(
+                user_input=query,
+                response=answer,
+                retrieved_contexts=contexts,
+            ))
+        except Exception as e:
+            print(f"  SKIP (error): {e}")
+
+    if not samples:
+        print("No samples collected. Exiting.")
+        sys.exit(1)
+
+    print(f"\nCollected {len(samples)} samples. Running RAGAS evaluate()...")
+
+    ragas_llm = LangchainLLMWrapper(
+        __import__("langchain_groq").ChatGroq(
+            model=config["llm"]["model"],
+            api_key=os.getenv("GROQ_API_KEY", ""),
+            temperature=0.0,
+        )
+    )
+    ragas_emb = LangchainEmbeddingsWrapper(
+        OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            openai_api_key=os.getenv("EURON_API_KEY", ""),
+            openai_api_base="https://api.euron.one/api/v1/euri",
+        )
+    )
+
+    dataset = EvaluationDataset(samples=samples)
+    results = evaluate(
+        dataset=dataset,
+        metrics=[
+            Faithfulness(llm=ragas_llm),
+            AnswerRelevancy(llm=ragas_llm, embeddings=ragas_emb),
+        ],
+    )
+
+    def safe_round(v):
+        try:
+            return round(float(v), 4)
+        except (TypeError, ValueError):
+            return None
+
+    output = {
+        "faithfulness": safe_round(results["faithfulness"]),
+        "answer_relevancy": safe_round(results["answer_relevancy"]),
+        "context_precision": None,
+        "context_recall": None,
+        "sample_count": len(samples),
+        "computed_at": datetime.now().isoformat(timespec="seconds"),
+        "note": "context_precision and context_recall require labeled ground_truth answers in eval_pairs.json",
+    }
+
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump(output, f, indent=2)
+
+    print(f"\n=== Results ===")
+    print(f"Faithfulness:     {output['faithfulness']}")
+    print(f"Answer Relevancy: {output['answer_relevancy']}")
+    print(f"Sample count:     {output['sample_count']}")
+    print(f"\nSaved to: {OUTPUT_PATH}")
+    print("Commit frontend/src/data/ragas_benchmark.json to update the dashboard.")
+
+
+if __name__ == "__main__":
+    main()

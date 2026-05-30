@@ -1,31 +1,34 @@
-const METRICS = [
+import benchmark from "../data/ragas_benchmark.json";
+
+const METRIC_META = [
   {
     key: "faithfulness",
     label: "Faithfulness",
-    value: 0.87,
     info: "Are claims in the answer supported by the retrieved documents? High = answer stays grounded in sources, doesn't hallucinate.",
   },
   {
     key: "answer_relevancy",
     label: "Answer Relevancy",
-    value: 0.91,
     info: "Does the answer actually address the question? High = on-topic, concise. Low = vague or off-topic response.",
   },
   {
     key: "context_precision",
     label: "Context Precision",
-    value: 0.74,
     info: "Were the retrieved chunks useful? High = retrieved docs were relevant to the question. Requires labeled ground truth dataset.",
   },
   {
     key: "context_recall",
     label: "Context Recall",
-    value: 0.68,
     info: "Did retrieval find all the relevant chunks? High = nothing important was missed. Requires labeled ground truth dataset.",
   },
 ];
 
+const METRICS = METRIC_META.map((m) => ({ ...m, value: benchmark[m.key] }));
+
 function ScoreBar({ value }) {
+  if (value === null || value === undefined) {
+    return <span className="text-xs text-gray-400">N/A — needs ground truth</span>;
+  }
   const pct = Math.round(value * 100);
   const color =
     pct >= 70 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-red-500";

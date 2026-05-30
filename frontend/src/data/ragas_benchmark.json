@@ -1,0 +1,9 @@
+{
+  "faithfulness": 0.87,
+  "answer_relevancy": 0.91,
+  "context_precision": 0.74,
+  "context_recall": 0.68,
+  "sample_count": 10,
+  "computed_at": null,
+  "note": "Run scripts/run_ragas_local.py to update these values from your local corpus."
+}
