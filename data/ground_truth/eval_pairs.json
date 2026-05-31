@@ -1,101 +1,121 @@
 [
   {
     "query": "What was the total UPI transaction volume in FY2024?",
+    "ground_truth": "Total UPI transaction volume crossed 131 billion transactions in FY2024. Monthly volume reached 14.04 billion transactions by March 2024, growing 56% year-on-year in volume and 43% in value compared to FY2023. Total annual value was approximately Rs 200 lakh crore.",
     "relevant_sources": ["npci_upi_report_2024.txt"],
     "relevant_chunk_keywords": ["131 billion", "14.04 billion", "transaction volume", "FY2024"]
   },
   {
     "query": "What was India's GDP growth rate in FY2024?",
+    "ground_truth": "India's real GDP grew at 7.6% in FY2024, driven by strong domestic demand and investment activity. This was above the global average and made India one of the fastest-growing major economies.",
     "relevant_sources": ["rbi_annual_report_2024.txt"],
     "relevant_chunk_keywords": ["7.6 per cent", "GDP growth", "FY2024", "domestic demand"]
   },
   {
     "query": "What were Bajaj Finance's Assets Under Management in Q3 FY2024?",
+    "ground_truth": "Bajaj Finance's consolidated Assets Under Management (AUM) stood at Rs 3,10,672 crore as of Q3 FY2024, growing 35% year-on-year.",
     "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
     "relevant_chunk_keywords": ["AUM", "3,10,672 crore", "35%", "assets under management"]
   },
   {
     "query": "What is RBI's stance on digital lending regulations?",
+    "ground_truth": "RBI issued enhanced guidelines on digital lending requiring all digital loans to be disbursed and repaid through borrower bank accounts. Lending Service Providers (LSPs) and Digital Lending Apps (DLAs) must comply with disclosure requirements. The framework applies to NBFCs and banks offering digital lending products.",
     "relevant_sources": ["rbi_annual_report_2024.txt"],
     "relevant_chunk_keywords": ["digital lending", "NBFC", "Lending Service Providers", "DLA", "disclosure"]
   },
   {
     "query": "How many banks were live on UPI by March 2024?",
+    "ground_truth": "580 banks were live on UPI as of March 2024, up from 437 in March 2023. PSU banks accounted for 35% of UPI originating transactions, private banks 42%, and Small Finance Banks and Payment Banks 23%.",
     "relevant_sources": ["npci_upi_report_2024.txt"],
     "relevant_chunk_keywords": ["580 banks", "live on UPI", "March 2024"]
   },
   {
     "query": "What was the UPI fraud rate in FY2024?",
+    "ground_truth": "The UPI fraud rate was 0.0006% of total transactions in FY2024. There were 3.07 lakh fraud cases reported, representing a very small fraction given the 131 billion total transactions processed during the year.",
     "relevant_sources": ["npci_upi_report_2024.txt"],
     "relevant_chunk_keywords": ["0.0006%", "fraud rate", "3.07 lakh", "fraud cases"]
   },
   {
     "query": "What was the RBI repo rate during FY2024?",
+    "ground_truth": "The RBI kept the repo rate unchanged at 6.50% throughout FY2024. The Monetary Policy Committee (MPC) maintained this rate to balance inflation control with growth support, keeping the policy stance as withdrawal of accommodation.",
     "relevant_sources": ["rbi_annual_report_2024.txt"],
     "relevant_chunk_keywords": ["6.50 per cent", "repo rate", "monetary policy", "MPC"]
   },
   {
     "query": "What was Bajaj Finance's profit after tax in Q3 FY2024?",
+    "ground_truth": "Bajaj Finance's profit after tax (PAT) in Q3 FY2024 was Rs 3,639 crore, growing 22% year-on-year. Earnings per share increased correspondingly.",
     "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
     "relevant_chunk_keywords": ["3,639 crore", "profit after tax", "22%", "earnings per share"]
   },
   {
     "query": "What is UPI Lite and how many users does it have?",
+    "ground_truth": "UPI Lite is a feature enabling small-value transactions up to Rs 500 with near-zero decline rates by using an on-device wallet. As of March 2024, UPI Lite had 5.2 crore enabled users processing 18 crore transactions monthly. UPI Lite X, the offline variant, was piloted in 12 cities.",
     "relevant_sources": ["npci_upi_report_2024.txt"],
     "relevant_chunk_keywords": ["UPI Lite", "small-value", "Rs 500", "5.2 crore", "near-zero decline"]
   },
   {
     "query": "What was India's CPI inflation rate in FY2024?",
+    "ground_truth": "India's CPI inflation averaged 5.4% in FY2024, declining from 6.7% in FY2023. Core inflation (excluding food and fuel) moderated to 4.2%. Food inflation remained elevated, while fuel prices provided some relief.",
     "relevant_sources": ["rbi_annual_report_2024.txt"],
     "relevant_chunk_keywords": ["5.4 per cent", "CPI", "inflation", "core inflation", "4.2 per cent"]
   },
   {
     "query": "What is Bajaj Finance's capital adequacy ratio?",
+    "ground_truth": "Bajaj Finance's Capital to Risk-weighted Assets Ratio (CRAR) stood at 23.8% as of Q3 FY2024, with Tier-I capital ratio at 22.1%. Both are well above the regulatory minimum, reflecting a strong capital position.",
     "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
     "relevant_chunk_keywords": ["CRAR", "23.8%", "capital adequacy", "Tier-I", "22.1%"]
   },
   {
     "query": "Which countries accept UPI payments internationally?",
+    "ground_truth": "UPI is accepted internationally in Singapore, UAE, France, Sri Lanka, and several other countries for cross-border payments. NPCI International is driving further expansion to reach 20 countries by 2028.",
     "relevant_sources": ["npci_upi_report_2024.txt"],
     "relevant_chunk_keywords": ["Singapore", "UAE", "France", "Sri Lanka", "international", "cross-border"]
   },
   {
     "query": "What was India's foreign exchange reserves in March 2024?",
+    "ground_truth": "India's foreign exchange reserves stood at USD 645.6 billion as of March 2024, providing approximately 11 months of import cover and reflecting strong external sector resilience.",
     "relevant_sources": ["rbi_annual_report_2024.txt"],
     "relevant_chunk_keywords": ["USD 645.6 billion", "foreign exchange reserves", "March 2024"]
   },
   {
     "query": "What is Bajaj Finance's Gross NPA ratio?",
+    "ground_truth": "Bajaj Finance's Gross NPA (GNPA) ratio was 0.95% and Net NPA ratio was 0.36% as of Q3 FY2024. Provision coverage remained strong, reflecting disciplined underwriting and collections.",
     "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
     "relevant_chunk_keywords": ["GNPA", "0.95%", "net NPA", "0.36%", "provision coverage"]
   },
   {
     "query": "What is the market share of PhonePe on UPI?",
+    "ground_truth": "PhonePe held 47% market share on UPI by transaction volume, followed by Google Pay at 34%. The top two players together control over 80% of UPI transactions, though NPCI's market cap guidelines aim to limit concentration.",
     "relevant_sources": ["npci_upi_report_2024.txt"],
     "relevant_chunk_keywords": ["PhonePe", "47%", "Google Pay", "34%", "market share"]
   },
   {
     "query": "What is the banking sector's GNPA ratio as reported by RBI?",
+    "ground_truth": "The banking sector's Gross NPA (GNPA) ratio declined to 3.2% as of March 2024, the lowest in over a decade. Net NPA ratio stood at 0.8%. The improvement reflects better asset quality, recoveries, and write-offs.",
     "relevant_sources": ["rbi_annual_report_2024.txt"],
     "relevant_chunk_keywords": ["3.2 per cent", "GNPA", "net NPA", "0.8 per cent", "banking sector"]
   },
   {
     "query": "How much did Bajaj Finance spend on technology?",
+    "ground_truth": "Bajaj Finance spent Rs 1,180 crore on technology in Q3 FY2024, representing approximately 12% of operating expenses. Technology investments focus on digital origination, customer experience, and risk management platforms.",
     "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
     "relevant_chunk_keywords": ["1,180 crore", "technology spend", "12%", "operating expenses"]
   },
   {
     "query": "What are the BBPS transaction statistics for FY2024?",
+    "ground_truth": "Bharat Bill Payment System (BBPS) processed 1,243 crore transactions worth Rs 15.4 lakh crore in FY2024, growing 42% year-on-year. BBPS handles utility bill payments, insurance premiums, EMI collections, and other recurring payments.",
     "relevant_sources": ["npci_upi_report_2024.txt"],
     "relevant_chunk_keywords": ["BBPS", "1,243 crore", "15.4 lakh crore", "42%"]
   },
   {
     "query": "What is the Digital Rupee pilot status?",
+    "ground_truth": "RBI's Digital Rupee (e-Rupee / CBDC) retail pilot was expanded to 50 cities with over 10 lakh users as of FY2024. The pilot covers retail use cases for person-to-person and person-to-merchant transactions using a digital wallet issued by participating banks.",
     "relevant_sources": ["rbi_annual_report_2024.txt"],
     "relevant_chunk_keywords": ["Digital Rupee", "CBDC", "e-Rupee", "50 cities", "10 lakh", "retail"]
   },
   {
     "query": "What is Bajaj Housing Finance's AUM and IPO plans?",
+    "ground_truth": "Bajaj Housing Finance's AUM stood at Rs 72,400 crore as of Q3 FY2024. The company filed its Draft Red Herring Prospectus (DRHP) for an IPO and listing on stock exchanges, subject to regulatory approvals.",
     "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
     "relevant_chunk_keywords": ["Bajaj Housing Finance", "72,400 crore", "IPO", "DRHP", "listing"]
   }

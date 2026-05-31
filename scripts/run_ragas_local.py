@@ -104,6 +104,10 @@ def _answer_query(llm, retriever, query: str) -> tuple[str, list[str]]:
 def main():
     parser = argparse.ArgumentParser(description="Run RAGAS eval locally and save to JSON")
     parser.add_argument("--n", type=int, default=10, help="Number of eval pairs to run (default 10)")
+    parser.add_argument("--full", action="store_true", help="Run all 4 metrics incl. context_precision + context_recall")
+    parser.add_argument("--eval-model", default="llama-3.1-8b-instant",
+                        help="Groq model used as RAGAS judge (default: llama-3.1-8b-instant, 500k TPD). "
+                             "Separate from answer-generation model to avoid burning 70B token quota.")
     args = parser.parse_args()
 
     print("=== FinRAG RAGAS Local Benchmark ===\n")
@@ -118,7 +122,7 @@ def main():
     # Check ragas installed
     try:
         from ragas import evaluate, EvaluationDataset, SingleTurnSample
-        from ragas.metrics import Faithfulness, AnswerRelevancy
+        from ragas.metrics import Faithfulness, AnswerRelevancy, ContextPrecision, ContextRecall
         from ragas.llms import LangchainLLMWrapper
         from ragas.embeddings import LangchainEmbeddingsWrapper
         from langchain_openai import OpenAIEmbeddings
@@ -139,6 +143,7 @@ def main():
     samples = []
     for i, pair in enumerate(pairs):
         query = pair["query"]
+        ground_truth = pair.get("ground_truth")
         print(f"[{i+1}/{len(pairs)}] {query[:70]}")
         try:
             answer, contexts = _answer_query(llm, retriever, query)
@@ -146,6 +151,7 @@ def main():
                 user_input=query,
                 response=answer,
                 retrieved_contexts=contexts,
+                reference=ground_truth,  # enables context_precision + context_recall
             ))
         except Exception as e:
             print(f"  SKIP (error): {e}")
@@ -156,9 +162,11 @@ def main():
 
     print(f"\nCollected {len(samples)} samples. Running RAGAS evaluate()...")
 
+    print(f"RAGAS judge model: {args.eval_model} (answer generation: {config['llm']['model']})")
+    from langchain_groq import ChatGroq as _ChatGroq
     ragas_llm = LangchainLLMWrapper(
-        __import__("langchain_groq").ChatGroq(
-            model=config["llm"]["model"],
+        _ChatGroq(
+            model=args.eval_model,
             api_key=os.getenv("GROQ_API_KEY", ""),
             temperature=0.0,
         )
@@ -171,14 +179,21 @@ def main():
         )
     )
 
+    metrics_to_run = [
+        Faithfulness(llm=ragas_llm),
+        AnswerRelevancy(llm=ragas_llm, embeddings=ragas_emb),
+    ]
+    if args.full:
+        metrics_to_run += [
+            ContextPrecision(llm=ragas_llm),
+            ContextRecall(llm=ragas_llm),
+        ]
+        print("Mode: FULL (4 metrics — faithfulness + answer_relevancy + context_precision + context_recall)")
+    else:
+        print("Mode: FAST (2 metrics — faithfulness + answer_relevancy). Use --full for context metrics.")
+
     dataset = EvaluationDataset(samples=samples)
-    results = evaluate(
-        dataset=dataset,
-        metrics=[
-            Faithfulness(llm=ragas_llm),
-            AnswerRelevancy(llm=ragas_llm, embeddings=ragas_emb),
-        ],
-    )
+    results = evaluate(dataset=dataset, metrics=metrics_to_run)
 
     def safe_mean(series):
         try:
@@ -188,26 +203,27 @@ def main():
             return None
 
     scores_df = results.to_pandas()
+    print(f"\nDataFrame columns: {list(scores_df.columns)}")
+    metric_cols = [c for c in ["faithfulness", "answer_relevancy", "context_precision", "context_recall"] if c in scores_df.columns]
     print("\nPer-sample scores:")
-    print(scores_df[["faithfulness", "answer_relevancy"]].to_string())
+    print(scores_df[metric_cols].to_string())
 
     output = {
         "faithfulness": safe_mean(scores_df["faithfulness"]) if "faithfulness" in scores_df.columns else None,
         "answer_relevancy": safe_mean(scores_df["answer_relevancy"]) if "answer_relevancy" in scores_df.columns else None,
-        "context_precision": None,
-        "context_recall": None,
+        "context_precision": safe_mean(scores_df["context_precision"]) if "context_precision" in scores_df.columns else None,
+        "context_recall": safe_mean(scores_df["context_recall"]) if "context_recall" in scores_df.columns else None,
         "sample_count": len(samples),
         "computed_at": datetime.now().isoformat(timespec="seconds"),
-        "note": "context_precision and context_recall require labeled ground_truth answers in eval_pairs.json",
     }
 
     with open(OUTPUT_PATH, "w") as f:
         json.dump(output, f, indent=2)
 
     print(f"\n=== Results ===")
-    print(f"Faithfulness:     {output['faithfulness']}")
-    print(f"Answer Relevancy: {output['answer_relevancy']}")
-    print(f"Sample count:     {output['sample_count']}")
+    for k in ("faithfulness", "answer_relevancy", "context_precision", "context_recall"):
+        print(f"{k:25s}: {output[k]}")
+    print(f"{'sample_count':25s}: {output['sample_count']}")
     print(f"\nSaved to: {OUTPUT_PATH}")
     print("Commit frontend/src/data/ragas_benchmark.json to update the dashboard.")
 
