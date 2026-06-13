@@ -1,5 +1,5 @@
 import chromadb
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from server.bm25_index import delete_workspace_index
 from server.utils import setup_logger
@@ -20,13 +20,15 @@ async def list_workspaces():
     try:
         client = _get_chroma_client()
         collections = client.list_collections()
-        return {"workspaces": [c.name for c in collections]}
+        # chromadb ≥0.5.4 returns list[str]; older versions return list[Collection]
+        names = [c if isinstance(c, str) else c.name for c in collections]
+        return {"workspaces": names}
     except Exception as e:
         raise HTTPException(500, f"Failed to list workspaces: {e}")
 
 
 @router.delete("/workspaces/{workspace_id}")
-async def delete_workspace(workspace_id: str):
+async def delete_workspace(workspace_id: str, request: Request):
     """Delete a workspace — removes ChromaDB collection and BM25 index entry."""
     if workspace_id in _PROTECTED_WORKSPACES:
         raise HTTPException(400, f"Cannot delete protected workspace '{workspace_id}'")

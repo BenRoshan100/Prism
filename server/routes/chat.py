@@ -29,15 +29,20 @@ async def chat(
     If web_search=True, Tavily results are prepended as additional context.
     workspace param selects which ChromaDB collection to retrieve from.
     """
+    from server.retriever import get_retriever as _get_retriever
+
     chain = request.app.state.chain
     if chain is None:
         raise HTTPException(status_code=400, detail="No documents uploaded yet. Please upload documents first.")
     eval_log = request.app.state.eval_log
 
+    # Always use workspace-specific retriever so correct collection is queried
+    retriever = _get_retriever(workspace)
+
     web_sources = []
     question = body.question
 
-    logger.info("QUERY | web_search=%s | workspace=%s | %s", body.web_search, workspace, body.question[:100])
+    logger.info("QUERY | workspace=%s | web_search=%s | %s", workspace, body.web_search, body.question[:100])
 
     if body.web_search:
         from server.web_search import search_web
@@ -46,12 +51,26 @@ async def chat(
         web_sources = search_web(search_query)
 
     if body.web_search and web_sources:
-        from server.retriever import get_retriever as _get_retriever
-        retriever = _get_retriever(workspace)
         memory = request.app.state.memory
         result = run_query_with_web(chain, retriever, memory, question, web_sources)
     else:
         result = run_query(chain, question)
+        # Override source_documents with workspace-specific retrieval
+        ws_docs = retriever.invoke(question)
+        result["source_documents"] = [
+            {
+                "content": doc.page_content,
+                "source": doc.metadata.get("source", ""),
+                "page": doc.metadata.get("page"),
+                "chunk_index": doc.metadata.get("chunk_index"),
+                "citation_index": doc.metadata.get("citation_index"),
+                "similarity_score": doc.metadata.get("similarity_score"),
+                "bm25_score": doc.metadata.get("bm25_score"),
+                "rrf_score": doc.metadata.get("rrf_score"),
+                "rerank_score": doc.metadata.get("rerank_score"),
+            }
+            for doc in ws_docs
+        ]
 
     all_sources = result["source_documents"] + web_sources
 
@@ -60,11 +79,11 @@ async def chat(
         if "citation_index" not in src or src["citation_index"] is None:
             src["citation_index"] = i + 1
 
-    # Score faithfulness against all context
     faithfulness = score_faithfulness(result["answer"], all_sources)
 
     logger.info(
-        "RESPONSE | faithfulness=%s | rag_sources=%d | web_sources=%d",
+        "RESPONSE | workspace=%s | faithfulness=%s | rag_sources=%d | web_sources=%d",
+        workspace,
         faithfulness["score"],
         len(result["source_documents"]),
         len(web_sources),
