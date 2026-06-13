@@ -1,4 +1,4 @@
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 from langchain_classic.chains import ConversationalRetrievalChain
 
@@ -90,6 +90,7 @@ def run_query(chain, question: str) -> dict:
             "source": doc.metadata.get("source", ""),
             "page": doc.metadata.get("page", None),
             "chunk_index": doc.metadata.get("chunk_index", None),
+            "citation_index": doc.metadata.get("citation_index"),
             "similarity_score": doc.metadata.get("similarity_score"),
             "bm25_score": doc.metadata.get("bm25_score"),
             "rrf_score": doc.metadata.get("rrf_score"),
@@ -164,6 +165,7 @@ def run_query_with_web(
             "source": doc.metadata.get("source", ""),
             "page": doc.metadata.get("page", None),
             "chunk_index": doc.metadata.get("chunk_index", None),
+            "citation_index": doc.metadata.get("citation_index"),
             "similarity_score": doc.metadata.get("similarity_score"),
             "bm25_score": doc.metadata.get("bm25_score"),
             "rrf_score": doc.metadata.get("rrf_score"),
