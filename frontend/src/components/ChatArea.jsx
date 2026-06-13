@@ -1,12 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { sendMessage } from "../api";
 import MessageBubble from "./MessageBubble";
 
-export default function ChatArea({ onEvalEntry, hasDocuments }) {
+export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion, onSuggestedQuestionUsed }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
+
+  useEffect(() => {
+    if (suggestedQuestion) {
+      setInput(suggestedQuestion);
+      onSuggestedQuestionUsed?.();
+    }
+  }, [suggestedQuestion]);
 
   async function handleSend(e) {
     e.preventDefault();

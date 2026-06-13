@@ -37,6 +37,8 @@ export default function Sidebar({
   onNewConversation,
   evalLog,
   onBriefing,
+  briefing,
+  onSuggestedQuestion,
 }) {
   const [deletingDoc, setDeletingDoc] = useState(null);
 
@@ -78,6 +80,39 @@ export default function Sidebar({
           </h3>
           <FileUpload onUploadComplete={setDocuments} onBriefing={onBriefing} />
         </div>
+
+        {/* Briefing card */}
+        {briefing && (
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5 space-y-2">
+            <h3 className="text-xs font-semibold text-indigo-500 uppercase tracking-wider truncate">
+              {briefing.doc_name.length > 30
+                ? briefing.doc_name.slice(0, 30) + "…"
+                : briefing.doc_name}
+            </h3>
+            <ul className="space-y-1">
+              {briefing.summary.map((point, i) => (
+                <li key={i} className="text-xs text-gray-600 flex gap-1.5">
+                  <span className="text-indigo-400 shrink-0">•</span>
+                  {point}
+                </li>
+              ))}
+            </ul>
+            {briefing.suggested_questions.length > 0 && (
+              <div className="pt-1 space-y-1">
+                <p className="text-xs text-indigo-400 font-medium">Try asking:</p>
+                {briefing.suggested_questions.map((q, i) => (
+                  <button
+                    key={i}
+                    onClick={() => onSuggestedQuestion(q)}
+                    className="block w-full text-left text-xs bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-gray-700 hover:bg-indigo-50 hover:border-indigo-400 transition-colors"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Uploaded Documents */}
         <div className="bg-gray-50/80 rounded-xl p-3.5">
