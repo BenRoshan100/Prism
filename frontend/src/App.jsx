@@ -62,6 +62,7 @@ function App() {
           onWorkspacesUpdate={setWorkspaces}
         />
         <ChatArea
+          key={currentWorkspace}
           onEvalEntry={(entry) => setEvalLog((prev) => [...prev, entry])}
           hasDocuments={documents.length > 0}
           suggestedQuestion={suggestedQuestion}
