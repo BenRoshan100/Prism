@@ -42,7 +42,11 @@ def generate_briefing(doc_name: str, text_sample: str) -> dict:
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw)
 
-        data = json.loads(raw)
+        # Extract JSON object — handles LLM preamble text before the JSON
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            raise ValueError(f"No JSON object in LLM response: {raw[:100]}")
+        data = json.loads(match.group())
         return {
             "doc_name": doc_name,
             "summary": data.get("summary", [])[:5],

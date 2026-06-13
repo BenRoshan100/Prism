@@ -35,7 +35,7 @@ def test_generate_briefing_limits_to_five_bullets():
     )
     with patch("server.briefing._get_llm", return_value=mock_llm):
         result = generate_briefing("test.pdf", SAMPLE_TEXT)
-    assert len(result["summary"]) <= 5
+    assert len(result["summary"]) == 5
 
 
 def test_generate_briefing_limits_to_three_questions():
@@ -45,7 +45,7 @@ def test_generate_briefing_limits_to_three_questions():
     )
     with patch("server.briefing._get_llm", return_value=mock_llm):
         result = generate_briefing("test.pdf", SAMPLE_TEXT)
-    assert len(result["suggested_questions"]) <= 3
+    assert len(result["suggested_questions"]) == 3
 
 
 def test_generate_briefing_strips_markdown_fences():
@@ -56,6 +56,17 @@ def test_generate_briefing_strips_markdown_fences():
     with patch("server.briefing._get_llm", return_value=mock_llm):
         result = generate_briefing("doc.pdf", SAMPLE_TEXT)
     assert len(result["summary"]) == 5
+
+
+def test_generate_briefing_handles_preamble_before_json():
+    mock_response = MagicMock()
+    mock_response.content = 'Sure! Here is the analysis:\n{"summary": ["P1", "P2", "P3", "P4", "P5"], "suggested_questions": ["Q1?", "Q2?", "Q3?"]}'
+    mock_llm = MagicMock()
+    mock_llm.invoke.return_value = mock_response
+    with patch("server.briefing._get_llm", return_value=mock_llm):
+        result = generate_briefing("doc.pdf", SAMPLE_TEXT)
+    assert len(result["summary"]) == 5
+    assert len(result["suggested_questions"]) == 3
 
 
 def test_generate_briefing_returns_empty_on_llm_failure():
