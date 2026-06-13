@@ -3,7 +3,7 @@ import gc
 from fastapi import APIRouter, Request, HTTPException, Query
 from pydantic import BaseModel
 
-from server.chain import run_query, run_query_with_web, condense_question
+from server.chain import run_query_with_web, condense_question
 from server.memory import clear_memory
 from server.eval.faithfulness import score_faithfulness
 from server.utils import setup_logger
@@ -50,27 +50,11 @@ async def chat(
         search_query = condense_question(question, memory)
         web_sources = search_web(search_query)
 
+    memory = request.app.state.memory
     if body.web_search and web_sources:
-        memory = request.app.state.memory
         result = run_query_with_web(chain, retriever, memory, question, web_sources)
     else:
-        result = run_query(chain, question)
-        # Override source_documents with workspace-specific retrieval
-        ws_docs = retriever.invoke(question)
-        result["source_documents"] = [
-            {
-                "content": doc.page_content,
-                "source": doc.metadata.get("source", ""),
-                "page": doc.metadata.get("page"),
-                "chunk_index": doc.metadata.get("chunk_index"),
-                "citation_index": doc.metadata.get("citation_index"),
-                "similarity_score": doc.metadata.get("similarity_score"),
-                "bm25_score": doc.metadata.get("bm25_score"),
-                "rrf_score": doc.metadata.get("rrf_score"),
-                "rerank_score": doc.metadata.get("rerank_score"),
-            }
-            for doc in ws_docs
-        ]
+        result = run_query_with_web(chain, retriever, memory, question, [])
 
     all_sources = result["source_documents"] + web_sources
 

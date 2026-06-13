@@ -4,9 +4,12 @@ import httpx
 from server.url_loader import load_url
 
 
-def _mock_response(html: str, status: int = 200):
+def _mock_response(html: str, status: int = 200, content_type: str = "text/html; charset=utf-8"):
     mock = MagicMock()
     mock.text = html
+    mock.content = html.encode("utf-8")
+    mock.headers = MagicMock()
+    mock.headers.get = MagicMock(return_value=content_type)
     if status != 200:
         request = httpx.Request("GET", "https://example.com")
         response = httpx.Response(status, request=request)

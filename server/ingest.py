@@ -176,6 +176,6 @@ def run_ingestion_pipeline(data_dir: str) -> Chroma:
     vectorstore = embed_and_store(chunks)
 
     count = vectorstore._collection.count()
-    print(f"Collection 'prism': {count} chunks ready")
+    print(f"{count} chunks ready in ChromaDB")
 
     return vectorstore

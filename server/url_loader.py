@@ -19,8 +19,22 @@ def load_url(url: str, timeout: float = 15.0) -> list[Document]:
     Raises ValueError if no extractable text found.
     Raises httpx.HTTPStatusError on non-2xx responses.
     """
-    resp = httpx.get(url, follow_redirects=True, timeout=timeout)
+    resp = httpx.get(
+        url,
+        follow_redirects=True,
+        timeout=timeout,
+        headers={"Accept": "text/html,text/plain,*/*"},
+    )
     resp.raise_for_status()
+
+    content_type = resp.headers.get("content-type", "")
+    if "text" not in content_type and "html" not in content_type:
+        raise ValueError(f"URL does not return text content (got {content_type}): {url}")
+
+    # Guard against huge pages (> 5MB) to prevent OOM on constrained deployments
+    _MAX_BYTES = 5 * 1024 * 1024  # 5MB
+    if len(resp.content) > _MAX_BYTES:
+        raise ValueError(f"URL response too large ({len(resp.content) // 1024}KB > 5MB limit): {url}")
 
     soup = BeautifulSoup(resp.text, "html.parser")
     for tag in soup(_STRIP_TAGS):

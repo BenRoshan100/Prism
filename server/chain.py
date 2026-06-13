@@ -177,11 +177,13 @@ def run_query_with_web(
         f"[Doc: {d['source']}]\n{d['content']}" for d in rag_docs
     ) or "No document context."
 
-    web_ctx = "\n\n".join(
-        f"[Web: {w['title']} | {w['url']}]\n{w['content']}" for w in web_sources
-    )
-
-    combined = f"=== Document context ===\n{rag_ctx}\n\n=== Web search results ===\n{web_ctx}"
+    if web_sources:
+        web_ctx = "\n\n".join(
+            f"[Web: {w['title']} | {w['url']}]\n{w['content']}" for w in web_sources
+        )
+        combined = f"=== Document context ===\n{rag_ctx}\n\n=== Web search results ===\n{web_ctx}"
+    else:
+        combined = rag_ctx
 
     config = load_config()
     llm = _create_llm(config.get("llm", {}))
