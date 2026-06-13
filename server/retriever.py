@@ -14,6 +14,8 @@ load_dotenv()
 
 logger = setup_logger(__name__)
 
+DEFAULT_WORKSPACE = "default"
+
 
 def _get_embeddings() -> OpenAIEmbeddings:
     return OpenAIEmbeddings(
@@ -23,10 +25,9 @@ def _get_embeddings() -> OpenAIEmbeddings:
     )
 
 
-def get_vectorstore(collection_name: str = "prism") -> Chroma:
+def get_vectorstore(collection_name: str = DEFAULT_WORKSPACE) -> Chroma:
     """Load (or open) ChromaDB collection."""
-    config = load_config()
-    collection_name = config.get("retrieval", {}).get("collection_name", collection_name)
+    # collection_name passed directly; config default only applies when caller uses DEFAULT_WORKSPACE
     return Chroma(
         collection_name=collection_name,
         embedding_function=_get_embeddings(),
@@ -40,8 +41,9 @@ class HybridRetriever(BaseRetriever):
     vectorstore: Any
     dense_weight: float = 0.7
     sparse_weight: float = 0.3
-    retrieve_k: int = 20
+    retrieve_k: int = 10
     rerank_k: int = 5
+    workspace_id: str = "default"
 
     class Config:
         arbitrary_types_allowed = True
@@ -91,7 +93,7 @@ class HybridRetriever(BaseRetriever):
         from server.reranker import rerank
 
         dense_results = self._dense_retrieve(query, k=self.retrieve_k)
-        sparse_results = get_index().search(query, k=self.retrieve_k)
+        sparse_results = get_index(self.workspace_id).search(query, k=self.retrieve_k)
         fused = self._rrf_fuse(dense_results, sparse_results)
         reranked = rerank(query, fused[: self.retrieve_k], top_k=self.rerank_k)
 
@@ -111,17 +113,18 @@ class HybridRetriever(BaseRetriever):
         return docs
 
 
-def get_retriever() -> HybridRetriever:
+def get_retriever(workspace_id: str = DEFAULT_WORKSPACE) -> HybridRetriever:
     """Build and return HybridRetriever from current ChromaDB collection."""
     config = load_config()
     retrieval_cfg = config.get("retrieval", {})
-    vectorstore = get_vectorstore()
+    vectorstore = get_vectorstore(workspace_id)
     return HybridRetriever(
         vectorstore=vectorstore,
         dense_weight=retrieval_cfg.get("dense_weight", 0.7),
         sparse_weight=retrieval_cfg.get("sparse_weight", 0.3),
-        retrieve_k=retrieval_cfg.get("retrieve_k", 20),
+        retrieve_k=retrieval_cfg.get("retrieve_k", 10),
         rerank_k=retrieval_cfg.get("rerank_k", 5),
+        workspace_id=workspace_id,
     )
 
 
@@ -145,9 +148,9 @@ def retrieve_with_scores(query: str, k: int = 5) -> list[dict]:
     ]
 
 
-def get_document_stats(collection_name: str = "prism") -> list[dict]:
+def get_document_stats(workspace_id: str = DEFAULT_WORKSPACE) -> list[dict]:
     """Return [{name, chunk_count}] for all unique sources in collection."""
-    vectorstore = get_vectorstore(collection_name)
+    vectorstore = get_vectorstore(workspace_id)
     try:
         existing = vectorstore.get()
         if not existing or not existing["ids"]:
@@ -159,5 +162,5 @@ def get_document_stats(collection_name: str = "prism") -> list[dict]:
         return []
 
 
-def has_documents(collection_name: str = "prism") -> bool:
-    return len(get_document_stats(collection_name)) > 0
+def has_documents(workspace_id: str = DEFAULT_WORKSPACE) -> bool:
+    return len(get_document_stats(workspace_id)) > 0

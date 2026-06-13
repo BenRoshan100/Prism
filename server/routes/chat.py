@@ -1,6 +1,6 @@
 import gc
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Query
 from pydantic import BaseModel
 
 from server.chain import run_query, run_query_with_web, condense_question
@@ -19,10 +19,15 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat")
-async def chat(request: Request, body: ChatRequest):
+async def chat(
+    request: Request,
+    body: ChatRequest,
+    workspace: str = Query("default"),
+):
     """
     Run a RAG query and return answer + sources + faithfulness score.
     If web_search=True, Tavily results are prepended as additional context.
+    workspace param selects which ChromaDB collection to retrieve from.
     """
     chain = request.app.state.chain
     if chain is None:
@@ -32,7 +37,7 @@ async def chat(request: Request, body: ChatRequest):
     web_sources = []
     question = body.question
 
-    logger.info("QUERY | web_search=%s | %s", body.web_search, body.question[:100])
+    logger.info("QUERY | web_search=%s | workspace=%s | %s", body.web_search, workspace, body.question[:100])
 
     if body.web_search:
         from server.web_search import search_web
@@ -41,7 +46,8 @@ async def chat(request: Request, body: ChatRequest):
         web_sources = search_web(search_query)
 
     if body.web_search and web_sources:
-        retriever = request.app.state.retriever
+        from server.retriever import get_retriever as _get_retriever
+        retriever = _get_retriever(workspace)
         memory = request.app.state.memory
         result = run_query_with_web(chain, retriever, memory, question, web_sources)
     else:

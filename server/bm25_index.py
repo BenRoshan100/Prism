@@ -4,6 +4,8 @@ from server.utils import setup_logger
 
 logger = setup_logger(__name__)
 
+DEFAULT_WORKSPACE = "default"
+
 
 class BM25Index:
     def __init__(self):
@@ -11,14 +13,12 @@ class BM25Index:
         self._corpus: list[dict] = []
 
     def build(self, corpus: list[dict]) -> None:
-        """Build BM25 index from corpus of dicts with 'content' key."""
         self._corpus = corpus
         tokenized = [doc["content"].lower().split() for doc in corpus]
         self._bm25 = BM25Okapi(tokenized)
         logger.info(f"BM25 index built: {len(corpus)} docs")
 
     def search(self, query: str, k: int = 20) -> list[dict]:
-        """Return top-k docs with bm25_score. Returns [] if index not built."""
         if self._bm25 is None:
             return []
         tokenized_query = query.lower().split()
@@ -36,20 +36,22 @@ class BM25Index:
         return self._bm25 is not None
 
 
-# Module-level singleton
-_index = BM25Index()
+# Workspace-keyed dict of BM25 indexes
+_indexes: dict[str, BM25Index] = {}
 
 
-def get_index() -> BM25Index:
-    return _index
+def get_index(workspace_id: str = DEFAULT_WORKSPACE) -> BM25Index:
+    if workspace_id not in _indexes:
+        _indexes[workspace_id] = BM25Index()
+    return _indexes[workspace_id]
 
 
-def build_from_vectorstore(vectorstore) -> None:
-    """Fetch all docs from ChromaDB and rebuild BM25 index."""
+def build_from_vectorstore(vectorstore, workspace_id: str = DEFAULT_WORKSPACE) -> None:
+    """Fetch all docs from ChromaDB collection and rebuild BM25 index for workspace."""
     try:
         existing = vectorstore.get()
         if not existing or not existing.get("ids"):
-            logger.warning("ChromaDB empty — BM25 index not built")
+            logger.warning("ChromaDB empty for workspace '%s' — BM25 not built", workspace_id)
             return
         corpus = []
         for text, meta in zip(existing["documents"], existing["metadatas"]):
@@ -59,6 +61,12 @@ def build_from_vectorstore(vectorstore) -> None:
                 "page": meta.get("page"),
                 "chunk_index": meta.get("chunk_index"),
             })
-        _index.build(corpus)
+        get_index(workspace_id).build(corpus)
     except Exception as e:
-        logger.error(f"Failed to build BM25 index: {e}")
+        logger.error("Failed to build BM25 for workspace '%s': %s", workspace_id, e)
+
+
+def delete_workspace_index(workspace_id: str) -> None:
+    """Remove BM25 index for a deleted workspace."""
+    _indexes.pop(workspace_id, None)
+    logger.info("BM25 index deleted for workspace '%s'", workspace_id)

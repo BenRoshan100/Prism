@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException
+from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, Query
 from pydantic import BaseModel
 
 from server.ingest import ingest_files
@@ -20,10 +20,14 @@ ALLOWED_EXTENSIONS = {".pdf", ".txt", ".csv"}
 
 
 @router.post("/upload")
-async def upload_files(request: Request, files: list[UploadFile] = File(...)):
+async def upload_files(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    workspace: str = Form("default"),
+):
     """
     Accept file uploads (PDF, TXT, CSV).
-    Save to data/raw/, run ingestion, rebuild chain.
+    Save to data/raw/, run ingestion into the given workspace, rebuild chain.
     """
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -37,15 +41,15 @@ async def upload_files(request: Request, files: list[UploadFile] = File(...)):
         with open(dest, "wb") as out:
             out.write(content)
         saved_paths.append(str(dest))
-        logger.info(f"Saved uploaded file: {f.filename}")
+        logger.info(f"Saved uploaded file: {f.filename} (workspace={workspace})")
 
-    # Run ingestion on uploaded files
-    ingest_files(saved_paths)
+    # Run ingestion on uploaded files into workspace collection
+    ingest_files(saved_paths, collection_name=workspace)
 
     # Generate briefing from first uploaded file's chunks
     briefing = None
     try:
-        vs = get_vectorstore()
+        vs = get_vectorstore(workspace)
         existing = vs.get(where={"source": Path(saved_paths[0]).name})
         if existing and existing.get("documents"):
             sample_text = " ".join(existing["documents"][:6])
@@ -54,15 +58,15 @@ async def upload_files(request: Request, files: list[UploadFile] = File(...)):
         logger.warning("Briefing skipped: %s", e)
 
     # Rebuild BM25 index and chain with new data
-    build_from_vectorstore(get_vectorstore())
-    request.app.state.retriever = get_retriever()
+    build_from_vectorstore(get_vectorstore(workspace), workspace_id=workspace)
+    request.app.state.retriever = get_retriever(workspace)
     request.app.state.memory = create_memory()
     request.app.state.chain = build_qa_chain(
         request.app.state.retriever, request.app.state.memory
     )
-    logger.info("Chain rebuilt after upload")
+    logger.info("Chain rebuilt after upload (workspace=%s)", workspace)
 
-    docs = get_document_stats()
+    docs = get_document_stats(workspace)
     return {
         "uploaded": [f.filename for f in files],
         "documents": docs,
@@ -92,7 +96,7 @@ async def upload_url(request: Request, body: UrlUploadRequest):
     chunks = []
     try:
         chunks = chunk_documents(documents)
-        embed_and_store(chunks)
+        embed_and_store(chunks, collection_name=body.workspace)
     except Exception as e:
         logger.error("Embedding/store failed for URL %s: %s", body.url, e)
         raise HTTPException(503, "Failed to index URL content. Try again later.")
@@ -105,15 +109,15 @@ async def upload_url(request: Request, body: UrlUploadRequest):
     except Exception as e:
         logger.warning("URL briefing skipped: %s", e)
 
-    build_from_vectorstore(get_vectorstore())
-    request.app.state.retriever = get_retriever()
+    build_from_vectorstore(get_vectorstore(body.workspace), workspace_id=body.workspace)
+    request.app.state.retriever = get_retriever(body.workspace)
     request.app.state.memory = create_memory()
     request.app.state.chain = build_qa_chain(
         request.app.state.retriever, request.app.state.memory
     )
-    logger.info("Chain rebuilt after URL ingest: %s", body.url)
+    logger.info("Chain rebuilt after URL ingest: %s (workspace=%s)", body.url, body.workspace)
 
-    docs = get_document_stats()
+    docs = get_document_stats(body.workspace)
     return {
         "url": body.url,
         "chunks_added": len(chunks),
@@ -123,19 +127,19 @@ async def upload_url(request: Request, body: UrlUploadRequest):
 
 
 @router.get("/documents")
-async def list_documents():
+async def list_documents(workspace: str = Query("default")):
     """Return list of uploaded documents with chunk counts."""
-    docs = get_document_stats()
+    docs = get_document_stats(workspace)
     return {"documents": docs}
 
 
 @router.delete("/documents/{filename}")
-async def delete_document(filename: str, request: Request):
+async def delete_document(filename: str, request: Request, workspace: str = Query("default")):
     """
     Remove all chunks for a document from ChromaDB, delete the raw file,
     then rebuild BM25 index and chain.
     """
-    vectorstore = get_vectorstore()
+    vectorstore = get_vectorstore(workspace)
 
     # Find all chunk IDs for this source
     try:
@@ -149,7 +153,7 @@ async def delete_document(filename: str, request: Request):
 
     # Delete from ChromaDB
     vectorstore.delete(ids=chunk_ids)
-    logger.info(f"Deleted {len(chunk_ids)} chunks for '{filename}' from ChromaDB")
+    logger.info(f"Deleted {len(chunk_ids)} chunks for '{filename}' from ChromaDB (workspace={workspace})")
 
     # Delete raw file if it exists
     file_path = UPLOAD_DIR / filename
@@ -158,13 +162,13 @@ async def delete_document(filename: str, request: Request):
         logger.info(f"Deleted file: {file_path}")
 
     # Rebuild BM25 + chain
-    build_from_vectorstore(get_vectorstore())
-    request.app.state.retriever = get_retriever()
+    build_from_vectorstore(get_vectorstore(workspace), workspace_id=workspace)
+    request.app.state.retriever = get_retriever(workspace)
     request.app.state.memory = create_memory()
     request.app.state.chain = build_qa_chain(
         request.app.state.retriever, request.app.state.memory
     )
-    logger.info("Chain rebuilt after document deletion")
+    logger.info("Chain rebuilt after document deletion (workspace=%s)", workspace)
 
-    docs = get_document_stats()
+    docs = get_document_stats(workspace)
     return {"deleted": filename, "chunks_removed": len(chunk_ids), "documents": docs}

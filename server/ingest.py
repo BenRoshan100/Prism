@@ -76,11 +76,11 @@ def load_documents_from_paths(file_paths: list[str]) -> list:
     return documents
 
 
-def ingest_files(file_paths: list[str]) -> Chroma:
+def ingest_files(file_paths: list[str], collection_name: str = "default") -> Chroma:
     """Ingest specific files: load -> chunk -> embed -> store."""
     documents = load_documents_from_paths(file_paths)
     chunks = chunk_documents(documents)
-    vectorstore = embed_and_store(chunks)
+    vectorstore = embed_and_store(chunks, collection_name=collection_name)
     return vectorstore
 
 
@@ -115,15 +115,12 @@ def _chunk_id(chunk) -> str:
     return content_hash
 
 
-def embed_and_store(chunks: list, collection_name: str = "prism") -> Chroma:
+def embed_and_store(chunks: list, collection_name: str = "default") -> Chroma:
     """
-    Embed chunks using HuggingFaceEmbeddings (all-MiniLM-L6-v2).
-    Store in ChromaDB at ./chroma_db.
+    Embed chunks and store in ChromaDB at ./chroma_db.
     Idempotent: uses content hash as document ID to prevent duplicates.
+    collection_name maps to workspace_id — each workspace gets its own ChromaDB collection.
     """
-    config = load_config()
-    collection_name = config.get("retrieval", {}).get("collection_name", collection_name)
-
     embeddings = OpenAIEmbeddings(
         model="text-embedding-3-small",
         openai_api_key=os.environ.get("EURON_API_KEY"),

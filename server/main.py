@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from server.retriever import get_retriever, get_vectorstore, has_documents
-from server.bm25_index import build_from_vectorstore
+from server.bm25_index import build_from_vectorstore, DEFAULT_WORKSPACE as BM25_DEFAULT
 from server.reranker import load_reranker
 from server.memory import create_memory
 from server.chain import build_qa_chain
@@ -29,10 +29,10 @@ async def lifespan(app: FastAPI):
     # Pre-load reranker to avoid cold-start latency on first query
     load_reranker()
 
-    if has_documents():
-        vectorstore = get_vectorstore()
-        build_from_vectorstore(vectorstore)
-        app.state.retriever = get_retriever()
+    if has_documents(BM25_DEFAULT):
+        vectorstore = get_vectorstore(BM25_DEFAULT)
+        build_from_vectorstore(vectorstore, workspace_id=BM25_DEFAULT)
+        app.state.retriever = get_retriever(BM25_DEFAULT)
         app.state.chain = build_qa_chain(app.state.retriever, app.state.memory)
         logger.info("Chain initialized with existing documents")
     else:
@@ -67,11 +67,12 @@ async def log_requests(request: Request, call_next) -> Response:
     return response
 
 # Import and include route modules
-from server.routes import chat, eval, upload  # noqa: E402
+from server.routes import chat, eval, upload, workspaces  # noqa: E402
 
 app.include_router(chat.router, prefix="/api")
 app.include_router(eval.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
+app.include_router(workspaces.router, prefix="/api")
 
 
 @app.get("/health")
