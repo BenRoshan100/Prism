@@ -77,8 +77,39 @@ function FaithfulnessBadge({ faithfulness }) {
   );
 }
 
+function CitedText({ text, onCitationClick }) {
+  if (!text) return null;
+  const parts = text.split(/(\[\d+\])/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const match = part.match(/^\[(\d+)\]$/);
+        if (match) {
+          const idx = parseInt(match[1], 10);
+          return (
+            <sup
+              key={i}
+              onClick={() => onCitationClick(idx)}
+              className="ml-0.5 text-indigo-500 font-semibold cursor-pointer hover:text-indigo-700 text-xs select-none"
+              title={`Jump to source [${idx}]`}
+            >
+              [{idx}]
+            </sup>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
+}
+
 export default function MessageBubble({ message }) {
   const isUser = message.role === "user";
+
+  function handleCitationClick(idx) {
+    const el = document.getElementById(`source-${idx}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -90,7 +121,14 @@ export default function MessageBubble({ message }) {
         }`}
       >
         <p className="text-sm whitespace-pre-wrap leading-relaxed">
-          {message.content}
+          {isUser ? (
+            message.content
+          ) : (
+            <CitedText
+              text={message.content}
+              onCitationClick={handleCitationClick}
+            />
+          )}
         </p>
 
         {!isUser && message.sources && (

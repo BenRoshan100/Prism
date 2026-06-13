@@ -38,6 +38,7 @@ export default function SourceExpander({ sources }) {
             return (
               <div
                 key={i}
+                id={`source-${src.citation_index || i + 1}`}
                 className={`bg-white border-l-2 rounded-r-lg shadow-xs pl-3 pr-3 py-2.5 ${
                   isWeb ? "border-emerald-400" : "border-indigo-400"
                 }`}
