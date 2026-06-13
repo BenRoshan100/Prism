@@ -9,6 +9,7 @@ from server.bm25_index import build_from_vectorstore
 from server.chain import build_qa_chain
 from server.memory import create_memory
 from server.utils import setup_logger
+from server.briefing import generate_briefing
 
 logger = setup_logger(__name__)
 
@@ -41,6 +42,17 @@ async def upload_files(request: Request, files: list[UploadFile] = File(...)):
     # Run ingestion on uploaded files
     ingest_files(saved_paths)
 
+    # Generate briefing from first uploaded file's chunks
+    briefing = None
+    try:
+        vs = get_vectorstore()
+        existing = vs.get(where={"source": Path(saved_paths[0]).name})
+        if existing and existing.get("documents"):
+            sample_text = " ".join(existing["documents"][:6])
+            briefing = generate_briefing(Path(saved_paths[0]).name, sample_text)
+    except Exception as e:
+        logger.warning("Briefing skipped: %s", e)
+
     # Rebuild BM25 index and chain with new data
     build_from_vectorstore(get_vectorstore())
     request.app.state.retriever = get_retriever()
@@ -51,7 +63,11 @@ async def upload_files(request: Request, files: list[UploadFile] = File(...)):
     logger.info("Chain rebuilt after upload")
 
     docs = get_document_stats()
-    return {"uploaded": [f.filename for f in files], "documents": docs}
+    return {
+        "uploaded": [f.filename for f in files],
+        "documents": docs,
+        "briefing": briefing,
+    }
 
 
 class UrlUploadRequest(BaseModel):
@@ -73,12 +89,21 @@ async def upload_url(request: Request, body: UrlUploadRequest):
         logger.error("URL fetch error for %s: %s", body.url, e)
         raise HTTPException(502, "Failed to fetch URL. Check that the address is reachable and returns HTML.")
 
+    chunks = []
     try:
         chunks = chunk_documents(documents)
         embed_and_store(chunks)
     except Exception as e:
         logger.error("Embedding/store failed for URL %s: %s", body.url, e)
         raise HTTPException(503, "Failed to index URL content. Try again later.")
+
+    # Generate briefing from ingested URL content
+    briefing = None
+    try:
+        sample_text = " ".join(c.page_content for c in chunks[:6])
+        briefing = generate_briefing(body.url, sample_text)
+    except Exception as e:
+        logger.warning("URL briefing skipped: %s", e)
 
     build_from_vectorstore(get_vectorstore())
     request.app.state.retriever = get_retriever()
@@ -93,7 +118,7 @@ async def upload_url(request: Request, body: UrlUploadRequest):
         "url": body.url,
         "chunks_added": len(chunks),
         "documents": docs,
-        "briefing": None,
+        "briefing": briefing,
     }
 
 
