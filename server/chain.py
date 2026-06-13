@@ -1,3 +1,4 @@
+from langchain.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 from langchain_classic.chains import ConversationalRetrievalChain
 
@@ -15,6 +16,25 @@ SYSTEM_PROMPT = (
     "provide that value and clearly state the actual date it refers to (e.g. 'As of May 22...'). "
     "Only say you don't know if the topic is completely absent from all context. "
     "Do not hallucinate. Be concise."
+)
+
+
+_DOC_PROMPT = PromptTemplate(
+    input_variables=["page_content", "citation_index"],
+    template="[{citation_index}] {page_content}",
+)
+
+_QA_PROMPT = PromptTemplate(
+    input_variables=["context", "question"],
+    template=(
+        "You are Prism, a document intelligence assistant.\n"
+        "Answer grounded strictly in the numbered sources below. "
+        "Cite inline with [1], [2] etc. matching the source numbers.\n"
+        "If the answer is absent from all sources, say so. Do not hallucinate.\n\n"
+        "Sources:\n{context}\n\n"
+        "Question: {question}\n"
+        "Answer:"
+    ),
 )
 
 
@@ -49,6 +69,10 @@ def build_qa_chain(retriever, memory) -> ConversationalRetrievalChain:
         memory=memory,
         return_source_documents=True,
         verbose=False,
+        combine_docs_chain_kwargs={
+            "prompt": _QA_PROMPT,
+            "document_prompt": _DOC_PROMPT,
+        },
     )
 
     logger.info("QA chain built successfully")

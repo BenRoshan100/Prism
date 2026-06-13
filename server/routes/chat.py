@@ -49,6 +49,11 @@ async def chat(request: Request, body: ChatRequest):
 
     all_sources = result["source_documents"] + web_sources
 
+    # Ensure citation_index is set on all sources for frontend rendering
+    for i, src in enumerate(all_sources):
+        if "citation_index" not in src or src["citation_index"] is None:
+            src["citation_index"] = i + 1
+
     # Score faithfulness against all context
     faithfulness = score_faithfulness(result["answer"], all_sources)
 

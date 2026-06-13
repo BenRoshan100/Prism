@@ -96,11 +96,12 @@ class HybridRetriever(BaseRetriever):
         reranked = rerank(query, fused[: self.retrieve_k], top_k=self.rerank_k)
 
         docs = []
-        for d in reranked:
+        for i, d in enumerate(reranked):
             metadata = {
                 "source": d.get("source", ""),
                 "page": d.get("page"),
                 "chunk_index": d.get("chunk_index"),
+                "citation_index": i + 1,
                 "similarity_score": d.get("similarity_score"),
                 "bm25_score": d.get("bm25_score"),
                 "rrf_score": d.get("rrf_score"),
@@ -134,6 +135,7 @@ def retrieve_with_scores(query: str, k: int = 5) -> list[dict]:
             "content": doc.page_content,
             "source": doc.metadata.get("source", ""),
             "page": doc.metadata.get("page"),
+            "citation_index": doc.metadata.get("citation_index"),
             "similarity_score": doc.metadata.get("similarity_score"),
             "bm25_score": doc.metadata.get("bm25_score"),
             "rrf_score": doc.metadata.get("rrf_score"),
