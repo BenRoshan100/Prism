@@ -70,10 +70,15 @@ async def upload_url(request: Request, body: UrlUploadRequest):
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
-        raise HTTPException(502, f"Failed to fetch URL: {e}")
+        logger.error("URL fetch error for %s: %s", body.url, e)
+        raise HTTPException(502, "Failed to fetch URL. Check that the address is reachable and returns HTML.")
 
-    chunks = chunk_documents(documents)
-    embed_and_store(chunks)
+    try:
+        chunks = chunk_documents(documents)
+        embed_and_store(chunks)
+    except Exception as e:
+        logger.error("Embedding/store failed for URL %s: %s", body.url, e)
+        raise HTTPException(503, "Failed to index URL content. Try again later.")
 
     build_from_vectorstore(get_vectorstore())
     request.app.state.retriever = get_retriever()

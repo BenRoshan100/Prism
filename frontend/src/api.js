@@ -42,7 +42,7 @@ export async function getDocuments() {
 }
 
 export async function uploadUrl(url, workspaceId = "default") {
-  const { data } = await api.post("/upload/url", { url, workspace: workspaceId });
+  const { data } = await api.post("/upload/url", { url, workspace: workspaceId }, { timeout: 60000 });
   return data;
 }
 
