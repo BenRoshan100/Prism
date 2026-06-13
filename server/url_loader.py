@@ -13,7 +13,7 @@ _CONTENT_TAGS = ["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "td", "th", "blo
 _MIN_BLOCK_LEN = 3
 
 
-def load_url(url: str, timeout: int = 15) -> list[Document]:
+def load_url(url: str, timeout: float = 15.0) -> list[Document]:
     """Fetch URL and extract readable text as a LangChain Document.
 
     Raises ValueError if no extractable text found.

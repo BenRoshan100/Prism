@@ -1,15 +1,20 @@
 from unittest.mock import patch, MagicMock
 import pytest
+import httpx
 from server.url_loader import load_url
 
 
 def _mock_response(html: str, status: int = 200):
     mock = MagicMock()
-    mock.status_code = status
     mock.text = html
-    mock.raise_for_status = MagicMock(
-        side_effect=None if status == 200 else Exception(f"HTTP {status}")
-    )
+    if status != 200:
+        request = httpx.Request("GET", "https://example.com")
+        response = httpx.Response(status, request=request)
+        mock.raise_for_status = MagicMock(
+            side_effect=httpx.HTTPStatusError("HTTP error", request=request, response=response)
+        )
+    else:
+        mock.raise_for_status = MagicMock(return_value=None)
     return mock
 
 
@@ -62,10 +67,8 @@ def test_load_url_metadata():
 
 
 def test_load_url_raises_on_http_error():
-    mock = MagicMock()
-    mock.raise_for_status = MagicMock(side_effect=Exception("HTTP 404"))
-    with patch("httpx.get", return_value=mock):
-        with pytest.raises(Exception):
+    with patch("httpx.get", return_value=_mock_response("<html></html>", status=404)):
+        with pytest.raises(httpx.HTTPStatusError):
             load_url("https://example.com/missing")
 
 
