@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { getDocuments, clearMemory } from "./api";
+import { useState, useEffect, useCallback } from "react";
+import { getDocuments, clearMemory, getWorkspaces } from "./api";
 import Sidebar from "./components/Sidebar";
 import ChatArea from "./components/ChatArea";
 
@@ -8,10 +8,13 @@ function App() {
   const [evalLog, setEvalLog] = useState([]);
   const [briefing, setBriefing] = useState(null);
   const [suggestedQuestion, setSuggestedQuestion] = useState("");
+  const [currentWorkspace, setCurrentWorkspace] = useState("default");
+  const [workspaces, setWorkspaces] = useState(["default"]);
 
   useEffect(() => {
-    getDocuments().then((d) => setDocuments(d.documents || []));
-  }, []);
+    getDocuments(currentWorkspace).then((d) => setDocuments(d.documents || []));
+    getWorkspaces().then((d) => setWorkspaces(d.workspaces || ["default"]));
+  }, [currentWorkspace]);
 
   async function handleNewConversation() {
     await clearMemory();
@@ -20,6 +23,15 @@ function App() {
     setSuggestedQuestion("");
     window.location.reload();
   }
+
+  async function handleWorkspaceChange(ws) {
+    setCurrentWorkspace(ws);
+    setBriefing(null);
+    setSuggestedQuestion("");
+    setEvalLog([]);
+  }
+
+  const handleSuggestedQuestionUsed = useCallback(() => setSuggestedQuestion(""), []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -44,12 +56,17 @@ function App() {
           onBriefing={setBriefing}
           briefing={briefing}
           onSuggestedQuestion={setSuggestedQuestion}
+          currentWorkspace={currentWorkspace}
+          workspaces={workspaces}
+          onWorkspaceChange={handleWorkspaceChange}
+          onWorkspacesUpdate={setWorkspaces}
         />
         <ChatArea
           onEvalEntry={(entry) => setEvalLog((prev) => [...prev, entry])}
           hasDocuments={documents.length > 0}
           suggestedQuestion={suggestedQuestion}
-          onSuggestedQuestionUsed={() => setSuggestedQuestion("")}
+          onSuggestedQuestionUsed={handleSuggestedQuestionUsed}
+          currentWorkspace={currentWorkspace}
         />
       </main>
     </div>

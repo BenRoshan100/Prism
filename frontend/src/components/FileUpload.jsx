@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { uploadFiles, uploadUrl } from "../api";
 
-export default function FileUpload({ onUploadComplete, onBriefing }) {
+export default function FileUpload({ onUploadComplete, onBriefing, currentWorkspace = "default" }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState(null);
@@ -14,7 +14,7 @@ export default function FileUpload({ onUploadComplete, onBriefing }) {
     setUploading(true);
     setError(null);
     try {
-      const data = await uploadFiles(files);
+      const data = await uploadFiles(files, currentWorkspace);
       onUploadComplete(data.documents);
       if (data.briefing && onBriefing) onBriefing(data.briefing);
     } catch (err) {
@@ -31,7 +31,7 @@ export default function FileUpload({ onUploadComplete, onBriefing }) {
     setUploading(true);
     setError(null);
     try {
-      const data = await uploadUrl(url);
+      const data = await uploadUrl(url, currentWorkspace);
       onUploadComplete(data.documents);
       if (data.briefing && onBriefing) onBriefing(data.briefing);
       setUrlInput("");

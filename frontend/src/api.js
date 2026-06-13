@@ -4,8 +4,11 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "/api",
 });
 
-export async function sendMessage(question, webSearch = false) {
-  const { data } = await api.post("/chat", { question, web_search: webSearch });
+export async function sendMessage(question, webSearch = false, workspaceId = "default") {
+  const { data } = await api.post(`/chat?workspace=${encodeURIComponent(workspaceId)}`, {
+    question,
+    web_search: webSearch,
+  });
   return data;
 }
 
@@ -24,11 +27,12 @@ export async function runPrecisionEval() {
   return data;
 }
 
-export async function uploadFiles(fileList) {
+export async function uploadFiles(fileList, workspaceId = "default") {
   const formData = new FormData();
   for (const file of fileList) {
     formData.append("files", file);
   }
+  formData.append("workspace", workspaceId);
   const { data } = await api.post("/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" },
     timeout: 300000,
@@ -36,8 +40,8 @@ export async function uploadFiles(fileList) {
   return data;
 }
 
-export async function getDocuments() {
-  const { data } = await api.get("/documents");
+export async function getDocuments(workspaceId = "default") {
+  const { data } = await api.get(`/documents?workspace=${encodeURIComponent(workspaceId)}`);
   return data;
 }
 
@@ -56,8 +60,10 @@ export async function deleteWorkspace(workspaceId) {
   return data;
 }
 
-export async function deleteDocument(filename) {
-  const { data } = await api.delete(`/documents/${encodeURIComponent(filename)}`);
+export async function deleteDocument(filename, workspaceId = "default") {
+  const { data } = await api.delete(
+    `/documents/${encodeURIComponent(filename)}?workspace=${encodeURIComponent(workspaceId)}`
+  );
   return data;
 }
 

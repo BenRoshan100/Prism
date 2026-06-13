@@ -3,6 +3,54 @@ import FileUpload from "./FileUpload";
 import EvalPanel from "./EvalPanel";
 import { deleteDocument } from "../api";
 
+function NewWorkspaceInput({ onCreated }) {
+  const [name, setName] = useState("");
+  const [open, setOpen] = useState(false);
+
+  function handleCreate(e) {
+    e.preventDefault();
+    const slug = name
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "");
+    if (!slug) return;
+    onCreated(slug);
+    setName("");
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-2 w-full text-xs text-indigo-500 hover:text-indigo-700 text-left"
+      >
+        + New workspace
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={handleCreate} className="mt-2 flex gap-1">
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="workspace-name"
+        className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      />
+      <button
+        type="submit"
+        className="text-xs bg-indigo-600 text-white rounded-lg px-2 py-1.5 hover:bg-indigo-700"
+      >
+        Create
+      </button>
+    </form>
+  );
+}
+
 function TrafficLight({ faithfulnessMean }) {
   let color, label;
 
@@ -39,6 +87,10 @@ export default function Sidebar({
   onBriefing,
   briefing,
   onSuggestedQuestion,
+  currentWorkspace,
+  workspaces,
+  onWorkspaceChange,
+  onWorkspacesUpdate,
 }) {
   const [deletingDoc, setDeletingDoc] = useState(null);
 
@@ -46,7 +98,7 @@ export default function Sidebar({
     if (!window.confirm(`Remove "${docName}" from the index?`)) return;
     setDeletingDoc(docName);
     try {
-      const result = await deleteDocument(docName);
+      const result = await deleteDocument(docName, currentWorkspace);
       setDocuments(result.documents);
     } catch (e) {
       alert(`Delete failed: ${e?.response?.data?.detail || e.message}`);
@@ -65,6 +117,30 @@ export default function Sidebar({
   return (
     <aside className="w-80 bg-white border-r border-gray-100 flex flex-col shrink-0 h-[calc(100vh-65px)] overflow-y-auto">
       <div className="p-4 space-y-4">
+        {/* Workspace switcher */}
+        <div className="bg-gray-50/80 rounded-xl p-3.5">
+          <h3 className="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-2">
+            Workspace
+          </h3>
+          <select
+            value={currentWorkspace}
+            onChange={(e) => onWorkspaceChange(e.target.value)}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {workspaces.map((ws) => (
+              <option key={ws} value={ws}>
+                {ws}
+              </option>
+            ))}
+          </select>
+          <NewWorkspaceInput
+            onCreated={(ws) => {
+              onWorkspacesUpdate((prev) => [...new Set([...prev, ws])]);
+              onWorkspaceChange(ws);
+            }}
+          />
+        </div>
+
         {/* New Conversation */}
         <button
           onClick={onNewConversation}
@@ -78,7 +154,7 @@ export default function Sidebar({
           <h3 className="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-2.5">
             Upload Documents
           </h3>
-          <FileUpload onUploadComplete={setDocuments} onBriefing={onBriefing} />
+          <FileUpload onUploadComplete={setDocuments} onBriefing={onBriefing} currentWorkspace={currentWorkspace} />
         </div>
 
         {/* Briefing card */}

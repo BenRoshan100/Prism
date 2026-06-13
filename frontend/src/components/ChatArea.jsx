@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { sendMessage } from "../api";
 import MessageBubble from "./MessageBubble";
 
-export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion, onSuggestedQuestionUsed }) {
+export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion, onSuggestedQuestionUsed, currentWorkspace = "default" }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,7 +25,7 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
     setLoading(true);
 
     try {
-      const data = await sendMessage(question, webSearch);
+      const data = await sendMessage(question, webSearch, currentWorkspace);
       setMessages((prev) => [
         ...prev,
         {
