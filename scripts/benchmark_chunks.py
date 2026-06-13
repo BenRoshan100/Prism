@@ -98,7 +98,7 @@ def plot_results(results: list[dict], output_path: str):
     ax2.set_ylabel("Total Chunks", fontsize=12, color="#6366f1")
     ax2.tick_params(axis="y", labelcolor="#6366f1")
 
-    ax1.set_title("Precision@K vs Chunk Size — FinRAG Benchmark", fontsize=14, fontweight="bold", pad=15)
+    ax1.set_title("Precision@K vs Chunk Size — Prism Benchmark", fontsize=14, fontweight="bold", pad=15)
     ax2.legend(loc="upper right")
 
     plt.tight_layout()
