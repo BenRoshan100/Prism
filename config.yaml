@@ -3,7 +3,7 @@ chunking:
   chunk_overlap: 50
 
 retrieval:
-  collection_name: "finrag"
+  collection_name: "prism"
   dense_weight: 0.7
   sparse_weight: 0.3
   retrieve_k: 10

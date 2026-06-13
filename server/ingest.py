@@ -115,7 +115,7 @@ def _chunk_id(chunk) -> str:
     return content_hash
 
 
-def embed_and_store(chunks: list, collection_name: str = "finrag") -> Chroma:
+def embed_and_store(chunks: list, collection_name: str = "prism") -> Chroma:
     """
     Embed chunks using HuggingFaceEmbeddings (all-MiniLM-L6-v2).
     Store in ChromaDB at ./chroma_db.
@@ -179,6 +179,6 @@ def run_ingestion_pipeline(data_dir: str) -> Chroma:
     vectorstore = embed_and_store(chunks)
 
     count = vectorstore._collection.count()
-    print(f"Collection 'finrag': {count} chunks ready")
+    print(f"Collection 'prism': {count} chunks ready")
 
     return vectorstore

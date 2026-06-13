@@ -20,7 +20,7 @@ logger = setup_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize chain, memory, retriever on startup."""
-    logger.info("Starting FinRAG server...")
+    logger.info("Starting Prism server...")
     app.state.memory = create_memory()
     app.state.retriever = None
     app.state.chain = None
@@ -38,11 +38,11 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("No documents found - chain will be built after first upload")
 
-    logger.info("FinRAG server ready")
+    logger.info("Prism server ready")
     yield
 
 
-app = FastAPI(title="FinRAG API", lifespan=lifespan)
+app = FastAPI(title="Prism API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,7 +76,7 @@ app.include_router(upload.router, prefix="/api")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "2.0.0"}
+    return {"status": "ok", "version": "3.0.0"}
 
 # Serve React frontend build if it exists
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"

@@ -25,7 +25,7 @@ def configure_logging() -> None:
     console.setFormatter(fmt)
 
     file_handler = logging.handlers.RotatingFileHandler(
-        log_dir / "finrag.log",
+        log_dir / "prism.log",
         maxBytes=5 * 1024 * 1024,  # 5 MB
         backupCount=3,
         encoding="utf-8",

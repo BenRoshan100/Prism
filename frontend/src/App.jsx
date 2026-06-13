@@ -25,9 +25,9 @@ function App() {
           <div className="w-1 h-8 bg-indigo-600 rounded-full" />
           <div>
             <h1 className="text-lg font-semibold text-gray-900 leading-tight">
-              FinRAG
+              Prism
             </h1>
-            <p className="text-xs text-gray-400">Fintech Research Agent</p>
+            <p className="text-xs text-gray-400">Document Intelligence</p>
           </div>
         </div>
       </header>

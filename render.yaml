@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: finrag
+    name: prism
     runtime: docker
     plan: free
     envVars:

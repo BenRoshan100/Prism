@@ -23,7 +23,7 @@ def _get_embeddings() -> OpenAIEmbeddings:
     )
 
 
-def get_vectorstore(collection_name: str = "finrag") -> Chroma:
+def get_vectorstore(collection_name: str = "prism") -> Chroma:
     """Load (or open) ChromaDB collection."""
     config = load_config()
     collection_name = config.get("retrieval", {}).get("collection_name", collection_name)
@@ -143,7 +143,7 @@ def retrieve_with_scores(query: str, k: int = 5) -> list[dict]:
     ]
 
 
-def get_document_stats(collection_name: str = "finrag") -> list[dict]:
+def get_document_stats(collection_name: str = "prism") -> list[dict]:
     """Return [{name, chunk_count}] for all unique sources in collection."""
     vectorstore = get_vectorstore(collection_name)
     try:
@@ -157,5 +157,5 @@ def get_document_stats(collection_name: str = "finrag") -> list[dict]:
         return []
 
 
-def has_documents(collection_name: str = "finrag") -> bool:
+def has_documents(collection_name: str = "prism") -> bool:
     return len(get_document_stats(collection_name)) > 0

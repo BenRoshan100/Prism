@@ -71,8 +71,8 @@ export default function ChatArea({ onEvalEntry, hasDocuments }) {
             </p>
             <p className="text-sm text-gray-400">
               {hasDocuments
-                ? "FinRAG will find answers and cite sources"
-                : "Drop PDF, TXT, or CSV files in the sidebar"}
+                ? "Prism will find answers and cite sources"
+                : "Drop PDF, TXT, CSV files or paste a URL in the sidebar"}
             </p>
           </div>
         )}

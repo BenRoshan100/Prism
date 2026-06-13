@@ -48,7 +48,7 @@ def _build_retriever_and_llm():
         openai_api_base="https://api.euron.one/api/v1/euri",
     )
     vectorstore = Chroma(
-        collection_name="finrag",
+        collection_name="prism",
         embedding_function=embeddings,
         persist_directory="./chroma_db",
     )
@@ -110,7 +110,7 @@ def main():
                              "Separate from answer-generation model to avoid burning 70B token quota.")
     args = parser.parse_args()
 
-    print("=== FinRAG RAGAS Local Benchmark ===\n")
+    print("=== Prism RAGAS Local Benchmark ===\n")
 
     # Verify required API keys are set
     missing = [k for k in ("GROQ_API_KEY", "EURON_API_KEY") if not os.getenv(k)]
