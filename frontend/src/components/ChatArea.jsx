@@ -13,7 +13,7 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
       setInput(suggestedQuestion);
       onSuggestedQuestionUsed?.();
     }
-  }, [suggestedQuestion]);
+  }, [suggestedQuestion, onSuggestedQuestionUsed]);
 
   async function handleSend(e) {
     e.preventDefault();
