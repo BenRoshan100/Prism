@@ -36,6 +36,7 @@ export default function Sidebar({
   setDocuments,
   onNewConversation,
   evalLog,
+  onBriefing,
 }) {
   const [deletingDoc, setDeletingDoc] = useState(null);
 
@@ -75,7 +76,7 @@ export default function Sidebar({
           <h3 className="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-2.5">
             Upload Documents
           </h3>
-          <FileUpload onUploadComplete={setDocuments} />
+          <FileUpload onUploadComplete={setDocuments} onBriefing={onBriefing} />
         </div>
 
         {/* Uploaded Documents */}

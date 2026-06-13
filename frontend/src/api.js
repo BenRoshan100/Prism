@@ -41,6 +41,21 @@ export async function getDocuments() {
   return data;
 }
 
+export async function uploadUrl(url, workspaceId = "default") {
+  const { data } = await api.post("/upload/url", { url, workspace: workspaceId });
+  return data;
+}
+
+export async function getWorkspaces() {
+  const { data } = await api.get("/workspaces");
+  return data;
+}
+
+export async function deleteWorkspace(workspaceId) {
+  const { data } = await api.delete(`/workspaces/${encodeURIComponent(workspaceId)}`);
+  return data;
+}
+
 export async function deleteDocument(filename) {
   const { data } = await api.delete(`/documents/${encodeURIComponent(filename)}`);
   return data;
