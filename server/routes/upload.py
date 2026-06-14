@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, Q
 from pydantic import BaseModel
 
 from server.ingest import ingest_files
-from server.retriever import get_document_stats, get_retriever, get_vectorstore
+from server.retriever import get_document_stats, get_retriever, get_vectorstore, invalidate_cache
 from server.bm25_index import build_from_vectorstore
 from server.chain import build_qa_chain
 from server.memory import create_memory
@@ -58,6 +58,7 @@ async def upload_files(
         logger.warning("Briefing skipped: %s", e)
 
     # Rebuild BM25 index and chain with new data
+    invalidate_cache(workspace)
     build_from_vectorstore(get_vectorstore(workspace), workspace_id=workspace)
     request.app.state.retriever = get_retriever(workspace)
     request.app.state.memory = create_memory()
@@ -109,6 +110,7 @@ async def upload_url(request: Request, body: UrlUploadRequest):
     except Exception as e:
         logger.warning("URL briefing skipped: %s", e)
 
+    invalidate_cache(body.workspace)
     build_from_vectorstore(get_vectorstore(body.workspace), workspace_id=body.workspace)
     request.app.state.retriever = get_retriever(body.workspace)
     request.app.state.memory = create_memory()
@@ -162,6 +164,7 @@ async def delete_document(filename: str, request: Request, workspace: str = Quer
         logger.info(f"Deleted file: {file_path}")
 
     # Rebuild BM25 + chain
+    invalidate_cache(workspace)
     build_from_vectorstore(get_vectorstore(workspace), workspace_id=workspace)
     request.app.state.retriever = get_retriever(workspace)
     request.app.state.memory = create_memory()

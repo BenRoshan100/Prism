@@ -29,15 +29,16 @@ async def chat(
     If web_search=True, Tavily results are prepended as additional context.
     workspace param selects which ChromaDB collection to retrieve from.
     """
-    from server.retriever import get_retriever as _get_retriever
-
     chain = request.app.state.chain
     if chain is None:
         raise HTTPException(status_code=400, detail="No documents uploaded yet. Please upload documents first.")
     eval_log = request.app.state.eval_log
 
-    # Always use workspace-specific retriever so correct collection is queried
-    retriever = _get_retriever(workspace)
+    # Use cached retriever from app.state (set at upload time); fall back to singleton cache
+    retriever = getattr(request.app.state, "retriever", None)
+    if retriever is None:
+        from server.retriever import get_retriever as _get_retriever
+        retriever = _get_retriever(workspace)
 
     web_sources = []
     question = body.question

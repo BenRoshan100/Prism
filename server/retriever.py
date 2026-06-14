@@ -16,6 +16,10 @@ logger = setup_logger(__name__)
 
 DEFAULT_WORKSPACE = "default"
 
+# Singleton caches — avoids re-loading Chroma (and its embeddings) on every request
+_vs_cache: dict[str, Chroma] = {}
+_retriever_cache: dict[str, "HybridRetriever"] = {}
+
 
 def _get_embeddings() -> OpenAIEmbeddings:
     return OpenAIEmbeddings(
@@ -26,13 +30,20 @@ def _get_embeddings() -> OpenAIEmbeddings:
 
 
 def get_vectorstore(collection_name: str = DEFAULT_WORKSPACE) -> Chroma:
-    """Load (or open) ChromaDB collection."""
-    # collection_name passed directly; config default only applies when caller uses DEFAULT_WORKSPACE
-    return Chroma(
-        collection_name=collection_name,
-        embedding_function=_get_embeddings(),
-        persist_directory="./chroma_db",
-    )
+    """Return cached ChromaDB collection; create once per workspace."""
+    if collection_name not in _vs_cache:
+        _vs_cache[collection_name] = Chroma(
+            collection_name=collection_name,
+            embedding_function=_get_embeddings(),
+            persist_directory="./chroma_db",
+        )
+    return _vs_cache[collection_name]
+
+
+def invalidate_cache(workspace_id: str) -> None:
+    """Drop cached vectorstore + retriever after ingest so next call rebuilds cleanly."""
+    _vs_cache.pop(workspace_id, None)
+    _retriever_cache.pop(workspace_id, None)
 
 
 class HybridRetriever(BaseRetriever):
@@ -114,18 +125,20 @@ class HybridRetriever(BaseRetriever):
 
 
 def get_retriever(workspace_id: str = DEFAULT_WORKSPACE) -> HybridRetriever:
-    """Build and return HybridRetriever from current ChromaDB collection."""
-    config = load_config()
-    retrieval_cfg = config.get("retrieval", {})
-    vectorstore = get_vectorstore(workspace_id)
-    return HybridRetriever(
-        vectorstore=vectorstore,
-        dense_weight=retrieval_cfg.get("dense_weight", 0.7),
-        sparse_weight=retrieval_cfg.get("sparse_weight", 0.3),
-        retrieve_k=retrieval_cfg.get("retrieve_k", 10),
-        rerank_k=retrieval_cfg.get("rerank_k", 5),
-        workspace_id=workspace_id,
-    )
+    """Return cached HybridRetriever; build once per workspace."""
+    if workspace_id not in _retriever_cache:
+        config = load_config()
+        retrieval_cfg = config.get("retrieval", {})
+        vectorstore = get_vectorstore(workspace_id)
+        _retriever_cache[workspace_id] = HybridRetriever(
+            vectorstore=vectorstore,
+            dense_weight=retrieval_cfg.get("dense_weight", 0.7),
+            sparse_weight=retrieval_cfg.get("sparse_weight", 0.3),
+            retrieve_k=retrieval_cfg.get("retrieve_k", 10),
+            rerank_k=retrieval_cfg.get("rerank_k", 5),
+            workspace_id=workspace_id,
+        )
+    return _retriever_cache[workspace_id]
 
 
 def retrieve_with_scores(query: str, k: int = 5) -> list[dict]:
