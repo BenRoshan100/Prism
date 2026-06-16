@@ -55,9 +55,40 @@ class HybridRetriever(BaseRetriever):
     retrieve_k: int = 10
     rerank_k: int = 5
     workspace_id: str = "default"
+    use_hyde: bool = False
 
     class Config:
         arbitrary_types_allowed = True
+
+    def _hyde_expand(self, query: str) -> str:
+        """Generate a hypothetical answer and use it as the dense search query.
+
+        Falls back to the original query if the LLM call fails.
+        """
+        import os
+        from langchain_groq import ChatGroq
+        from langchain_core.messages import HumanMessage
+
+        config = load_config()
+        llm = ChatGroq(
+            model=config["llm"]["model"],
+            api_key=os.environ.get("GROQ_API_KEY", ""),
+            temperature=0.1,
+            max_tokens=150,
+        )
+        prompt = (
+            "Write a 2-sentence hypothetical answer to the following question. "
+            "Be specific and factual in style. Return only the answer, no preamble.\n\n"
+            f"Question: {query}"
+        )
+        try:
+            response = llm.invoke([HumanMessage(content=prompt)])
+            expanded = response.content.strip()
+            logger.info("HyDE expanded: %s → %s", query[:50], expanded[:80])
+            return expanded
+        except Exception as e:
+            logger.warning("HyDE expansion failed, using raw query: %s", e)
+            return query
 
     def _dense_retrieve(self, query: str, k: int) -> list[dict]:
         results = self.vectorstore.similarity_search_with_relevance_scores(query, k=k)
@@ -103,7 +134,8 @@ class HybridRetriever(BaseRetriever):
         from server.bm25_index import get_index
         from server.reranker import rerank
 
-        dense_results = self._dense_retrieve(query, k=self.retrieve_k)
+        dense_query = self._hyde_expand(query) if self.use_hyde else query
+        dense_results = self._dense_retrieve(dense_query, k=self.retrieve_k)
         sparse_results = get_index(self.workspace_id).search(query, k=self.retrieve_k)
         fused = self._rrf_fuse(dense_results, sparse_results)
         reranked = rerank(query, fused[: self.retrieve_k], top_k=self.rerank_k)
@@ -137,6 +169,7 @@ def get_retriever(workspace_id: str = DEFAULT_WORKSPACE) -> HybridRetriever:
             retrieve_k=retrieval_cfg.get("retrieve_k", 10),
             rerank_k=retrieval_cfg.get("rerank_k", 5),
             workspace_id=workspace_id,
+            use_hyde=retrieval_cfg.get("hyde_enabled", False),
         )
     return _retriever_cache[workspace_id]
 

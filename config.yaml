@@ -8,6 +8,7 @@ retrieval:
   sparse_weight: 0.3
   retrieve_k: 10
   rerank_k: 5
+  hyde_enabled: false
 
 memory:
   max_token_limit: 2000
