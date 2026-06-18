@@ -118,5 +118,191 @@
     "ground_truth": "Bajaj Housing Finance's AUM stood at Rs 72,400 crore as of Q3 FY2024. The company filed its Draft Red Herring Prospectus (DRHP) for an IPO and listing on stock exchanges, subject to regulatory approvals.",
     "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
     "relevant_chunk_keywords": ["Bajaj Housing Finance", "72,400 crore", "IPO", "DRHP", "listing"]
+  },
+  {
+    "query": "How did UPI transaction volume growth compare between FY2023 and FY2024?",
+    "ground_truth": "UPI grew 56% in volume and 43% in value in FY2024 compared to FY2023. In FY2023, UPI processed approximately 84 billion transactions. Monthly run-rate reached 14.04 billion in March 2024 versus 8.9 billion in March 2023. Growth decelerated slightly from FY2023's 80%+ pace but remained strong.",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["56%", "43%", "FY2023", "FY2024", "84 billion", "growth"]
+  },
+  {
+    "query": "What restrictions does RBI impose on digital lending service providers regarding loan disbursement?",
+    "ground_truth": "RBI mandates that all digital loan disbursals must flow directly to the borrower's bank account — not through any intermediary or pass-through account of the Lending Service Provider (LSP). Similarly, all repayments must be made directly to the regulated entity (bank or NBFC). LSPs are prohibited from holding or pooling borrower funds at any stage.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["disbursement", "borrower bank account", "LSP", "intermediary", "repayment", "prohibited"]
+  },
+  {
+    "query": "How did Bajaj Finance's net interest income change year-on-year in Q3 FY2024?",
+    "ground_truth": "Bajaj Finance's Net Interest Income (NII) grew 28% year-on-year in Q3 FY2024, driven by strong AUM expansion and stable net interest margins. NIM remained in the range of 9.8–10.2%, supported by a diversified borrowing mix and favorable repricing of the loan book.",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["net interest income", "NII", "28%", "NIM", "net interest margin"]
+  },
+  {
+    "query": "What did RBI say about the withdrawal of Rs 2000 denomination notes?",
+    "ground_truth": "RBI announced the withdrawal of Rs 2000 denomination banknotes from circulation in May 2023. Citizens were given until September 2023 to deposit or exchange these notes. Over 97% of the Rs 2000 notes in circulation were returned to the banking system by March 2024, reflecting smooth execution of the withdrawal.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["Rs 2000", "withdrawal", "denomination", "97%", "deposit", "exchange"]
+  },
+  {
+    "query": "What is NPCI's 30% market share cap for UPI apps and when does it apply?",
+    "ground_truth": "NPCI introduced a 30% market share cap for third-party UPI applications, applicable once total UPI transaction volume crosses 300 crore per month. The cap aims to prevent monopolization and ensure multiple players remain viable. The deadline for compliance has been extended to December 2026, giving Paytm, PhonePe, and Google Pay time to adjust.",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["30%", "market cap", "third-party", "UPI app", "December 2026", "compliance"]
+  },
+  {
+    "query": "What was Bajaj Finance's new loan customer acquisition in Q3 FY2024?",
+    "ground_truth": "Bajaj Finance acquired 39.5 lakh new loan customers in Q3 FY2024, taking the total customer franchise to over 8 crore. The EMI card base reached 4.4 crore active cardholders. Digital channels contributed over 55% of new customer acquisition.",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["39.5 lakh", "new customers", "8 crore", "EMI card", "digital channels", "55%"]
+  },
+  {
+    "query": "How did RBI address concerns about unsecured retail lending growth in FY2024?",
+    "ground_truth": "RBI raised risk weights on unsecured consumer credit and credit card receivables from 100% to 125% in November 2023, effectively raising the capital required for banks and NBFCs extending these loans. This was a macro-prudential measure to cool excessive growth in unsecured lending, which had been growing at 25–30% annually.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["risk weights", "unsecured", "125%", "credit card", "macro-prudential", "November 2023"]
+  },
+  {
+    "query": "What percentage of UPI transactions are P2M (person to merchant) versus P2P (person to person)?",
+    "ground_truth": "P2M (person-to-merchant) transactions constituted 57% of total UPI transaction volume in FY2024, up from 48% in FY2023. By value, P2P transactions still dominate at 70% due to higher average ticket size. The shift toward P2M reflects growing merchant adoption and QR code penetration.",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["P2M", "P2P", "57%", "merchant", "QR code", "ticket size"]
+  },
+  {
+    "query": "What was the RBI's assessment of systemic risk in Indian financial markets in FY2024?",
+    "ground_truth": "RBI's Financial Stability Report noted that systemic risk in Indian financial markets remained contained in FY2024. The banking sector's capital buffers were strong, interconnectedness risks were moderate, and stress test results showed resilience under adverse scenarios. The primary risks flagged were global spillovers from monetary tightening and geopolitical tensions.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["systemic risk", "Financial Stability Report", "capital buffers", "stress test", "geopolitical"]
+  },
+  {
+    "query": "What is Bajaj Finance's breakdown of AUM by product category?",
+    "ground_truth": "Bajaj Finance's AUM of Rs 3,10,672 crore in Q3 FY2024 comprised: consumer B2C lending (40%), SME lending (25%), commercial lending (15%), rural lending (12%), and mortgages including Bajaj Housing Finance (8%). Consumer B2C includes EMI finance, personal loans, and credit cards.",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["consumer B2C", "SME", "commercial lending", "rural", "mortgages", "product mix", "breakdown"]
+  },
+  {
+    "query": "What is the RBI's framework for regulating Account Aggregators?",
+    "ground_truth": "RBI's Account Aggregator (AA) framework allows licensed entities to facilitate consent-based financial data sharing between Financial Information Providers (FIPs) and Financial Information Users (FIUs). AAs do not store data — they only relay it with user consent. By March 2024, over 1.1 billion accounts were linked to the AA ecosystem with 27 FIPs live.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["Account Aggregator", "AA", "FIP", "FIU", "consent", "data sharing", "1.1 billion"]
+  },
+  {
+    "query": "How did UPI 123PAY perform in FY2024 for feature phone users?",
+    "ground_truth": "UPI 123PAY, designed for feature phone users without internet connectivity, processed over 5 crore transactions monthly by March 2024. It supports IVR-based, missed-call, and proximity-sound-based payment methods. UPI 123PAY expanded to cover rural users across 19 regional languages.",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["UPI 123PAY", "feature phone", "IVR", "missed-call", "5 crore", "rural", "19 languages"]
+  },
+  {
+    "query": "What were Bajaj Finance's operating expenses and cost-to-income ratio in Q3 FY2024?",
+    "ground_truth": "Bajaj Finance's operating expenses in Q3 FY2024 were Rs 9,850 crore, with a cost-to-income ratio of 34.2%, improving from 36.5% in Q3 FY2023. The improvement was driven by operating leverage as AUM scaled faster than the cost base. Employee count stood at 72,000.",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["operating expenses", "cost-to-income", "34.2%", "operating leverage", "72,000", "employee"]
+  },
+  {
+    "query": "What does the corpus say about RBI's stance on co-lending arrangements between banks and NBFCs?",
+    "ground_truth": "RBI's co-lending model (CLM) allows banks to co-originate loans with NBFCs, with the bank taking at least 80% of the loan on its books. NBFCs service the customer and retain 20%. This expands credit access to priority sector borrowers. RBI issued revised guidelines in FY2024 to tighten accountability for asset classification and NPA recognition under CLM.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["co-lending", "CLM", "NBFC", "80%", "priority sector", "NPA recognition"]
+  },
+  {
+    "query": "What was the total value of UPI transactions in Q4 FY2024 (January–March 2024)?",
+    "ground_truth": "UPI processed transactions worth Rs 59.3 lakh crore in Q4 FY2024 (January–March 2024), representing the highest quarterly value ever. Monthly value in March 2024 reached Rs 20.64 lakh crore, a 40% jump over the Rs 14.7 lakh crore in March 2023.",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["59.3 lakh crore", "Q4 FY2024", "20.64 lakh crore", "March 2024", "quarterly value"]
+  },
+  {
+    "query": "What is Bajaj Finance's liquidity coverage ratio and how does it compare to regulatory requirements?",
+    "ground_truth": "Bajaj Finance maintained a Liquidity Coverage Ratio (LCR) of 187% as of Q3 FY2024, significantly above the regulatory minimum of 100% for NBFCs. The company holds a liquidity buffer of Rs 14,200 crore to manage short-term obligations, reflecting a conservative liquidity management policy.",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["LCR", "liquidity coverage ratio", "187%", "regulatory minimum", "14,200 crore", "liquidity buffer"]
+  },
+  {
+    "query": "What was the credit-deposit ratio of Indian banks and RBI's concern about it?",
+    "ground_truth": "The credit-deposit (CD) ratio of Indian banks rose to 78.6% in FY2024, the highest since 2011. RBI expressed concern that deposit growth was lagging credit growth, creating potential liquidity pressure. RBI urged banks to mobilize deposits more aggressively and not over-rely on short-term borrowings to fund long-term credit.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["credit-deposit ratio", "78.6%", "CD ratio", "deposit growth", "liquidity", "2011"]
+  },
+  {
+    "query": "How did IMPS and NEFT transaction volumes change in FY2024 alongside UPI?",
+    "ground_truth": "IMPS processed 6.2 billion transactions in FY2024, growing 21% year-on-year. NEFT processed 6.8 billion transactions growing 18%. Both grew at significantly slower rates than UPI's 56%, reflecting UPI's dominance in retail digital payments. RTGS value grew 12%, driven by large corporate settlements.",
+    "relevant_sources": ["npci_upi_report_2024.txt", "rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["IMPS", "NEFT", "6.2 billion", "6.8 billion", "RTGS", "21%", "18%"]
+  },
+  {
+    "query": "What is Bajaj Finance's exposure to rural lending and what products are offered?",
+    "ground_truth": "Bajaj Finance's rural lending vertical had an AUM of Rs 37,300 crore in Q3 FY2024, growing 42% year-on-year. Products include gold loans, two-wheeler finance, consumer durable loans, and personal loans through 1,600+ rural branches across Tier 3–6 towns. Rural NPA rates are slightly higher at 1.4% GNPA.",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["rural lending", "37,300 crore", "42%", "gold loans", "two-wheeler", "1,600", "Tier 3"]
+  },
+  {
+    "query": "What safeguards does RBI require for digital lending apps regarding data collection?",
+    "ground_truth": "RBI's digital lending guidelines prohibit Digital Lending Apps (DLAs) from accessing mobile phone resources such as contacts, call logs, or location data beyond what is necessary for the service and user-consented. DLAs must publish a data privacy policy and provide borrowers the right to data deletion. Storage of biometric data is not permitted.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["DLA", "data collection", "contacts", "call logs", "privacy policy", "biometric", "prohibited", "deletion"]
+  },
+  {
+    "query": "What was the average ticket size of UPI P2M transactions in FY2024?",
+    "ground_truth": "The average ticket size of UPI P2M (merchant) transactions was Rs 740 in FY2024, up from Rs 680 in FY2023. P2P average ticket size was Rs 3,280. The small merchant ticket size reflects QR-code retail and utility bill payments dominating the P2M segment.",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["average ticket size", "Rs 740", "P2M", "Rs 3,280", "P2P", "QR-code"]
+  },
+  {
+    "query": "Explain RBI's Prompt Corrective Action framework and which banks were under it in FY2024.",
+    "ground_truth": "RBI's Prompt Corrective Action (PCA) framework triggers supervisory actions when banks breach thresholds on capital adequacy (CRAR below 10.25%), asset quality (Net NPA above 6%), or profitability (negative ROA for 2 consecutive years). As of March 2024, no commercial bank was under PCA — the last bank (Central Bank of India) exited PCA in April 2022, reflecting improved sector health.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["PCA", "Prompt Corrective Action", "CRAR", "Net NPA", "ROA", "threshold", "Central Bank of India"]
+  },
+  {
+    "query": "What were Bajaj Finance's credit costs and loan loss provisions in Q3 FY2024?",
+    "ground_truth": "Bajaj Finance's credit costs stood at 1.45% of average assets in Q3 FY2024, slightly elevated due to higher provisioning in the B2C consumer segment. Loan loss provisions were Rs 1,248 crore for the quarter. Management guided credit costs to normalize to 1.2–1.3% over the next two quarters as portfolio seasoning improves.",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["credit costs", "1.45%", "loan loss provisions", "1,248 crore", "B2C", "seasoning", "1.2%"]
+  },
+  {
+    "query": "What was the UPI penetration among rural users and what NPCI initiatives drove it?",
+    "ground_truth": "UPI rural penetration reached 38% of active internet users in rural India by March 2024. Key drivers include UPI 123PAY for feature phones, UPI Lite for small-value offline transactions, and BHIM app simplification. NPCI's merchant acquisition program added 3.5 crore rural merchants to the UPI QR ecosystem in FY2024.",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["rural", "38%", "UPI 123PAY", "UPI Lite", "BHIM", "merchant acquisition", "3.5 crore"]
+  },
+  {
+    "query": "How does RBI define a payment aggregator and what are the capital requirements?",
+    "ground_truth": "Payment Aggregators (PAs) are entities that facilitate online payment collection from customers for merchants, without directly operating payment systems. RBI requires PAs to have a minimum net worth of Rs 25 crore at time of licensing, increasing to Rs 50 crore by March 2026. Existing PAs processing above Rs 25 lakh per day were required to apply for authorization by end of FY2024.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["Payment Aggregator", "PA", "net worth", "Rs 25 crore", "Rs 50 crore", "authorization", "FY2024"]
+  },
+  {
+    "query": "What is Bajaj Finance's auto loans and two-wheeler loans portfolio size?",
+    "ground_truth": "Bajaj Finance's auto finance AUM was Rs 18,400 crore in Q3 FY2024, including two-wheeler loans (Rs 9,200 crore) and three-wheeler and used car finance. Two-wheeler loan disbursements grew 32% year-on-year. GNPA in auto finance was 1.1%, below the company average, owing to strong collateral coverage.",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["auto finance", "two-wheeler", "18,400 crore", "9,200 crore", "32%", "collateral", "1.1%"]
+  },
+  {
+    "query": "What was the composition of India's current account deficit in FY2024 and RBI's assessment?",
+    "ground_truth": "India's current account deficit (CAD) narrowed to 0.7% of GDP in FY2024, from 2.0% in FY2023. The improvement was driven by lower oil import bills, strong services exports (especially IT and software), and robust remittances of USD 120 billion. RBI assessed the CAD as eminently manageable and well-financed by capital inflows.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["current account deficit", "CAD", "0.7%", "GDP", "oil imports", "remittances", "USD 120 billion"]
+  },
+  {
+    "query": "How did UPI handle the NPCI's 30% market cap — did PhonePe or Google Pay breach it in FY2024?",
+    "ground_truth": "Neither PhonePe (47% share) nor Google Pay (34% share) was in compliance with the 30% cap as of March 2024. NPCI extended the compliance deadline to December 2026 to avoid disruption to users. NPCI acknowledged that hard enforcement during the transition period would damage user trust and merchant operations.",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["30%", "PhonePe", "47%", "Google Pay", "34%", "December 2026", "compliance", "not in compliance"]
+  },
+  {
+    "query": "What was Bajaj Finance's deposit franchise size and interest rates offered in Q3 FY2024?",
+    "ground_truth": "Bajaj Finance's fixed deposit book stood at Rs 62,100 crore as of Q3 FY2024, growing 26% year-on-year. The company offered retail FD rates of 8.10–8.85% per annum across tenures of 12–60 months, making it one of the highest-rated NBFC FD issuers with an AAA credit rating from CRISIL and ICRA.",
+    "relevant_sources": ["bajaj_finance_q3_2024_transcript.txt"],
+    "relevant_chunk_keywords": ["fixed deposit", "62,100 crore", "26%", "8.10%", "8.85%", "AAA", "CRISIL", "ICRA"]
+  },
+  {
+    "query": "What did RBI's annual report say about fintech regulation and the regulatory sandbox?",
+    "ground_truth": "RBI's regulatory sandbox has processed four cohorts covering retail payments, cross-border payments, MSME lending, and prevention of financial frauds. Twenty-six entities completed sandbox testing by March 2024. RBI issued a principle-based regulatory framework for fintechs in FY2024, covering governance, consumer protection, and data privacy requirements without stifling innovation.",
+    "relevant_sources": ["rbi_annual_report_2024.txt"],
+    "relevant_chunk_keywords": ["regulatory sandbox", "fintech", "cohorts", "26 entities", "principle-based", "consumer protection", "data privacy"]
+  },
+  {
+    "query": "What is UPI AutoPay and how many mandates were registered by March 2024?",
+    "ground_truth": "UPI AutoPay enables recurring payment mandates for subscriptions, EMI deductions, and utility bill autopay. As of March 2024, 8.2 crore active AutoPay mandates were registered on the UPI platform, growing 65% year-on-year. EMI and loan repayment mandates were the largest segment at 45% of total AutoPay volume.",
+    "relevant_sources": ["npci_upi_report_2024.txt"],
+    "relevant_chunk_keywords": ["UPI AutoPay", "mandates", "8.2 crore", "65%", "EMI", "loan repayment", "recurring"]
   }
 ]

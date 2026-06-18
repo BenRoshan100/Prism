@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 from server.chain import run_query_with_web, condense_question
 from server.memory import clear_memory
-from server.eval.faithfulness import score_faithfulness
 from server.utils import setup_logger
 
 logger = setup_logger(__name__)
@@ -15,7 +14,7 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     question: str
-    web_search: bool = False
+    web_search: bool = True
 
 
 @router.post("/chat")
@@ -64,12 +63,9 @@ async def chat(
         if "citation_index" not in src or src["citation_index"] is None:
             src["citation_index"] = i + 1
 
-    faithfulness = score_faithfulness(result["answer"], all_sources)
-
     logger.info(
-        "RESPONSE | workspace=%s | faithfulness=%s | rag_sources=%d | web_sources=%d",
+        "RESPONSE | workspace=%s | rag_sources=%d | web_sources=%d",
         workspace,
-        faithfulness["score"],
         len(result["source_documents"]),
         len(web_sources),
     )
@@ -78,8 +74,6 @@ async def chat(
         "query": body.question,
         "answer": result["answer"],
         "contexts": [doc["content"] for doc in all_sources],
-        "faithfulness_score": faithfulness["score"],
-        "reason": faithfulness["reason"],
     })
 
     retrieval_method = result.get("retrieval_method", "hybrid+rerank")
@@ -91,7 +85,6 @@ async def chat(
     return {
         "answer": result["answer"],
         "sources": all_sources,
-        "faithfulness": faithfulness,
         "retrieval_method": retrieval_method,
     }
 

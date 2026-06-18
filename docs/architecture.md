@@ -1,10 +1,10 @@
-# Architecture — FinRAG v2
+# Architecture — Prism
 
 ## Problem
 Fintech analysts spend hours manually reading RBI circulars, NPCI reports, and earnings transcripts. Standard dense-only RAG fails silently and misses exact keyword matches in regulatory text (section numbers, policy codes).
 
 ## Architecture overview
-Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusion → cross-encoder rerank (top-20 → top-5) → LLM answer → faithfulness eval + LangSmith trace. ParentDocumentRetriever stores 200-char child chunks for retrieval but returns 800-char parent chunks to LLM.
+Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusion → cross-encoder rerank (top-10 → top-5) → LLM answer → LangSmith trace. ParentDocumentRetriever stores 200-char child chunks for retrieval but returns 800-char parent chunks to LLM. Multi-workspace: each workspace has its own ChromaDB collection; vectorstore + retriever cached per workspace to prevent OOM on repeated queries. Eval runs offline via `scripts/run_eval_versioned.py`; results served by a separate `eval-dashboard/` static site.
 
 ## Component breakdown
 
@@ -19,14 +19,16 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 | Chunking | LangChain ParentDocumentRetriever | Child 200-char indexed, parent 800-char sent to LLM |
 | Memory | ConversationBufferWindowMemory (k=10) | Last 10 conversation turns |
 | Chain | ConversationalRetrievalChain | LangChain orchestration |
-| Eval (primary) | RAGAS benchmark (pre-computed, JSON) | faithfulness 1.0, answer_relevancy 0.90 — run locally via `scripts/run_ragas_local.py`, committed to `frontend/src/data/ragas_benchmark.json` |
-| Eval (secondary) | Custom LLM-as-Judge | 1–5 faithfulness score per turn (per-message badge in UI) |
-| Eval (retrieval) | Precision@K | Ground-truth chunk matching |
+| Workspace | ChromaDB collection per workspace | Isolated document sets; switcher in frontend sidebar |
+| Retriever cache | Module-level dict keyed by workspace | Singleton vectorstore+retriever per workspace; invalidate on ingest |
+| Eval | Separate `eval-dashboard/` Vite+React static site | Reads versioned JSON run files; metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency p50/p95/p99 |
+| Eval script | `scripts/run_eval_versioned.py` | Runs offline against 50-pair ground truth; writes versioned JSON + updates index.json |
+| Eval ground truth | `data/ground_truth/eval_pairs.json` (50 pairs) | Multi-hop, comparative, negative, numeric, edge-case questions with reference answers |
 | Observability | LangSmith | Traces all LLM + retrieval calls via LANGCHAIN_TRACING_V2=true |
 | Document parsing | LlamaParse (primary), pypdf (fallback) | PDF extraction |
 | Backend | FastAPI + Uvicorn | REST API |
-| Frontend | React 19 + Vite + Tailwind CSS v4 | Chat / Eval / Upload tabs |
-| Deployment | Render (Docker backend) + Vercel (frontend) | Production |
+| Frontend | React 19 + Vite + Tailwind CSS v4 | Chat / Upload tabs |
+| Deployment | Render (Docker backend) + Vercel (frontend) + Vercel (eval-dashboard) | Production |
 
 ## Data flow
 
@@ -39,13 +41,12 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 
 ### Query
 1. `POST /api/chat` receives question
-2. `dense_retrieve`: ChromaDB top-20 by cosine similarity
-3. `sparse_retrieve`: BM25 top-20 by keyword score
+2. `dense_retrieve`: ChromaDB top-10 by cosine similarity (workspace-specific collection)
+3. `sparse_retrieve`: BM25 top-10 by keyword score
 4. `reciprocal_rank_fusion`: merge → deduplicate → RRF score
 5. `Reranker.rerank`: cross-encoder score → return top-5 parent chunks
 6. `ConversationalRetrievalChain`: LLM answers with context + memory
-7. `score_faithfulness`: LLM-as-Judge scores answer 1–5
-8. Response includes: answer, sources (with scores), faithfulness, retrieval_method
+7. Response includes: answer, sources (with scores), retrieval_method
 
 ## Key design decisions
 - **API embeddings over local**: sentence-transformers ~400MB OOMs on Render 512MB free tier; Euron API ~0MB. Groq used for LLM; Euron retained for embeddings (Groq exposes no embeddings endpoint).
@@ -54,6 +55,11 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 - **BM25 weight 0.3**: regulatory text has exact keyword matches (section numbers); sparse retrieval catches what dense misses
 - **RAGAS benchmark pre-computed locally**: `nest_asyncio` cannot patch `uvloop` (used by uvicorn on Render Linux), making live RAGAS eval impossible on prod. Run `scripts/run_ragas_local.py` locally, commit JSON results, Vercel builds dashboard from file.
 - **TinyBERT-L-2-v2 reranker**: MiniLM-L-6-v2 (~85MB) + base memory (~250MB) + Tavily content + LLM call exceeded Render 512MB on web queries. TinyBERT-L-2-v2 is ~17MB — same ranking quality at demo corpus scale.
+- **Singleton vectorstore/retriever cache**: each workspace caches its Chroma vectorstore + HybridRetriever in a module-level dict. Without cache, every chat request created a new Chroma instance (full embedding reload), causing OOM on repeated queries. Cache is invalidated after ingest.
+- **Multi-workspace isolation**: each workspace maps to one ChromaDB collection. Frontend workspace switcher passes `workspace_id` on every request; backend resolves the correct collection before retrieval.
+- **URL size guard**: `url_loader.py` enforces a max content size before embedding URL content, preventing OOM from large external pages.
+- **Eval dashboard separate site**: eval runs offline, results versioned as JSON. Separates eval tooling from user-facing app; no live eval endpoint on prod backend. Per-message faithfulness badge removed from UI — moved to dedicated dashboard.
+- **answer_correctness over faithfulness**: faithfulness (LLM judge vs retrieved chunks) is circular — inflates when eval pairs are corpus-aligned. answer_correctness (LLM judge vs ground_truth reference) is an independent signal.
 
 ## Known limitations
 - InMemoryStore for parent chunks: does not survive server restart (re-ingest required)

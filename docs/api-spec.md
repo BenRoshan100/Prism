@@ -1,8 +1,8 @@
-# API Specification — FinRAG v2
+# API Specification — Prism
 
 ## Base URL
 - Local: `http://localhost:8000`
-- Production: `https://finrag-v2.onrender.com` (set after deploy)
+- Production: `https://prism.onrender.com` (set after deploy)
 
 ---
 

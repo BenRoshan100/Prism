@@ -1,4 +1,4 @@
-# Technical Decisions — FinRAG v2
+# Technical Decisions — Prism
 
 ## Decision log
 
@@ -15,6 +15,17 @@
 | 2026-05-30 | Reranker switched to TinyBERT-L-2-v2 (~17MB) from MiniLM-L-6-v2 (~85MB) | MiniLM + base memory + Tavily content + LLM call exceeded 512MB on web queries; TinyBERT saves 68MB permanently with acceptable ranking quality at demo scale | Active |
 | 2026-05 | Cross-encoder reranker pre-downloaded at Docker build time | Avoids cold-start latency on first request in production | Active |
 | 2026-05 | Idempotent ingestion via md5(source+page+text) chunk IDs | Re-running ingest does not duplicate chunks in ChromaDB | Active |
+| 2026-06-14 | Multi-workspace: one ChromaDB collection per workspace | Isolated document sets per workspace; `workspace_id` passed on every request; `list_collections()` normalised for chromadb ≥0.5.4 (returns `list[str]`) and <0.5 (returns `list[Collection]`) | Active |
+| 2026-06-14 | Multi-workspace frontend: workspace switcher + per-workspace doc list and chat | Sidebar shows all workspaces; switching remounts ChatArea via React key prop to clear stale messages and state | Active |
+| 2026-06-14 | Singleton vectorstore/retriever cache keyed by workspace_id | Every chat request was creating a new Chroma instance (full embedding reload) on top of the existing one → OOM on repeated queries. Cache dict in `retriever.py` reuses instances; invalidated after ingest. | Active |
+| 2026-06-14 | URL size guard in url_loader.py before embedding | Large external pages (news, filings) could exhaust 512MB RAM during URL ingest. Guard truncates/rejects oversized content before embed call. | Active |
+| 2026-06-16 | HyDE for dense retrieval; toggled via config.yaml `hyde_enabled` | Hypothetical answer embedding lands closer to real answer chunks in vector space than raw query. BM25 + reranker still use original query. Off by default — adds one Groq call (~200ms); enable to measure RAGAS lift before committing. | Active |
+| 2026-06-17 | Web search mandatory (not toggle) | Opt-in toggle caused users to get hallucinated answers grounded in wrong corpus docs when web search was off. Always-on Tavily + RAG gives grounded answers for both corpus and open-domain queries. | Active |
+| 2026-06-17 | Separate eval-dashboard as own Vercel project | Eval tooling is not user-facing; separating avoids bloating the main frontend and lets eval dashboard evolve independently | Active |
+| 2026-06-17 | answer_correctness replaces faithfulness as primary metric | faithfulness (judge vs retrieved chunks) is circular — inflates when eval pairs were designed alongside corpus. answer_correctness (judge vs ground_truth reference) is independent signal | Active |
+| 2026-06-17 | Per-message faithfulness badge removed from user UI | Badge added noise without value to end users; saves one Groq call per query (~200ms latency reduction); eval moved to dedicated dashboard | Active |
+| 2026-06-17 | eval_pairs.json expanded 20 → 50 pairs | 20 samples not statistically meaningful; added multi-hop, comparative, negative, numeric, edge-case question types | Active |
+| 2026-06-17 | Versioned eval JSON runs + index.json registry | Single flat JSON had no history; versioned runs let dashboard show metric evolution across architecture changes | Active |
 
 ## Rejected alternatives
 

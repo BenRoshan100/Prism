@@ -1,19 +1,19 @@
-# FinRAG — Fintech Research Agent with Self-Scoring Retrieval
+# Prism — Document Intelligence with Self-Scoring Retrieval
 
 **Live demo:** https://fin-rag-git-main-benroshan100s-projects.vercel.app/
 
-A conversational RAG system for fintech documents (RBI circulars, NPCI reports, earnings transcripts) that **scores its own retrieval quality** per query. Most RAG apps ship without telling you when retrieval is silently failing. FinRAG surfaces that signal.
+Load any documents or URLs → Prism becomes an instant expert on that corpus. Ask multi-turn questions, get cited answers, and see retrieval quality scored on every response. Most RAG apps fail silently when retrieval breaks. Prism surfaces that signal.
 
 ---
 
 ## Why This Exists
 
-Fintech analysts spend hours manually reading policy circulars, earnings calls, and regulator reports to answer domain questions. Existing RAG systems retrieve context and generate plausible answers — but give you no signal on whether the retrieval actually worked. When embeddings drift, when chunk boundaries split critical context, or when the top-K misses the right passage, the LLM still produces a confident-sounding answer. It fails silently.
+Knowledge workers — analysts, researchers, lawyers, ops teams — spend hours manually reading documents to answer domain questions. Existing RAG systems retrieve context and generate plausible answers but give no signal on whether retrieval actually worked. When embeddings drift, when chunk boundaries split critical context, or when top-K misses the right passage, the LLM still produces a confident-sounding answer. It fails silently.
 
-FinRAG adds an **eval layer on top of the chat interface**:
-- **Faithfulness score** (LLM-as-Judge) on every answer — green/yellow/red badge inline
-- **Precision@K** against a ground-truth set of fintech queries
-- **Retrieval health dashboard** — traffic light based on rolling faithfulness
+Prism adds an **eval layer on top of the chat interface**:
+- **Faithfulness score** (LLM-as-Judge) on every answer — inline badge per message
+- **RAGAS benchmark** (4 metrics: faithfulness, answer_relevancy, context_precision, context_recall) — pre-computed, shown on Eval tab
+- **Retrieval health dashboard** — rolling faithfulness traffic light
 
 If retrieval degrades, you see it before the user does.
 
@@ -21,41 +21,42 @@ If retrieval degrades, you see it before the user does.
 
 ## What It Does
 
-- Upload PDFs, TXTs, or CSVs via drag-and-drop
+- Upload PDFs, TXTs, or CSVs via drag-and-drop; ingest URLs directly
 - Ask multi-turn questions with conversation memory (last 10 turns)
-- Get answers with **inline source citations** (filename, page, similarity score)
-- See a **faithfulness badge** on every answer (1-5 scale, green/yellow/red)
-- Run **batch Precision@K** against 20 pre-built fintech eval queries
-- Watch a **retrieval health indicator** that turns red when quality drops
+- Get answers with **inline source citations** (filename, page, similarity score, BM25 score, rerank score)
+- See a **faithfulness badge** on every answer (1–5 scale, colour-coded)
+- Switch between **isolated workspaces** — each workspace has its own document set
+- View **RAGAS benchmark scores** and per-turn faithfulness log on the Eval tab
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────┐       ┌─────────────────────────────────────┐
-│  React UI    │       │  FastAPI Backend                    │
-│  (Vercel)    │─HTTP─▶│  ┌───────────────────────────────┐  │
-└──────────────┘       │  │  Upload → Chunk → Embed       │  │
-                       │  │  (Euron API embeddings)       │  │
-                       │  └──────────────┬────────────────┘  │
-                       │                 ▼                   │
-                       │  ┌───────────────────────────────┐  │
-                       │  │  ChromaDB (on-disk vectors)   │  │
-                       │  └──────────────┬────────────────┘  │
-                       │                 ▼                   │
-                       │  ┌───────────────────────────────┐  │
-                       │  │  Retrieve top-K + score       │  │
-                       │  │  ConversationalRetrievalChain │  │
-                       │  │  LLM: Groq (llama-3.3-70b)    │  │
-                       │  └──────────────┬────────────────┘  │
-                       │                 ▼                   │
-                       │  ┌───────────────────────────────┐  │
-                       │  │  Faithfulness scorer          │  │
-                       │  │  (LLM-as-Judge, 1-5)          │  │
-                       │  └───────────────────────────────┘  │
-                       │  (Render — Docker, free tier)       │
-                       └─────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  React 19 + Vite + Tailwind (Vercel)                     │
+│  Workspace switcher | Chat | Eval | Upload               │
+└────────────────────────┬─────────────────────────────────┘
+                         │ HTTP
+┌────────────────────────▼─────────────────────────────────┐
+│  FastAPI Backend (Render — Docker, 512MB)                │
+│                                                          │
+│  Upload / URL ingest                                     │
+│  → ParentDocumentRetriever (child 200-char / parent 800) │
+│  → Euron API embeddings (text-embedding-3-small)         │
+│  → ChromaDB collection per workspace                     │
+│  → BM25 index per workspace                              │
+│                                                          │
+│  Query                                                   │
+│  → HybridRetriever (BM25 0.3 + dense 0.7 → RRF)         │
+│  → CrossEncoder rerank top-10 → top-5 (TinyBERT ~17MB)  │
+│  → ConversationalRetrievalChain                          │
+│  → Groq llama-3.3-70b-versatile                          │
+│  → LLM-as-Judge faithfulness score (1–5)                 │
+│                                                          │
+│  Web search path: Tavily advanced → condense → synthesise│
+│  Observability: LangSmith traces all LLM + retrieval     │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -65,71 +66,44 @@ If retrieval degrades, you see it before the user does.
 | Layer | Tech |
 |---|---|
 | **Backend** | FastAPI + Uvicorn |
-| **Vector store** | ChromaDB (persistent, on-disk) |
-| **Embeddings** | Euron API (`text-embedding-3-small`) — API-based to fit Render free tier |
-| **LLM** | Groq (`llama-3.3-70b-versatile`) via `langchain-groq` |
+| **Vector store** | ChromaDB (persistent, per-workspace collection) |
+| **Sparse retrieval** | rank_bm25 (BM25Okapi) |
+| **Hybrid fusion** | Weighted RRF (dense 0.7 + sparse 0.3) |
+| **Reranker** | cross-encoder/ms-marco-TinyBERT-L-2-v2 (~17MB) |
+| **Embeddings** | Euron API `text-embedding-3-small` — API-based to fit Render 512MB |
+| **LLM** | Groq `llama-3.3-70b-versatile` via `langchain-groq` |
 | **Orchestration** | LangChain `ConversationalRetrievalChain` |
 | **Memory** | `ConversationBufferWindowMemory` (k=10 turns) |
+| **Web search** | Tavily (advanced depth, 800-char truncation) |
+| **Eval** | RAGAS (pre-computed JSON) + LLM-as-Judge per turn |
+| **Observability** | LangSmith |
 | **Frontend** | React 19 + Vite + Tailwind CSS v4 |
-| **Deployment** | Backend on Render (Docker), Frontend on Vercel |
+| **Deployment** | Render (Docker backend) + Vercel (frontend) |
 
 ---
 
-## Key Features (The Eval Layer)
+## Eval Layer
 
-### 1. Faithfulness Scoring
-Every answer is passed back to the LLM with an eval prompt that scores 1-5 how well the answer is grounded in the retrieved chunks. The frontend renders a colored badge inline:
-- 🟢 **Faithful** (4-5/5)
-- 🟡 **Moderate** (3/5)
-- 🔴 **Low** (1-2/5)
+### Per-turn Faithfulness
+Every answer is scored 1–5 by an LLM judge against the retrieved chunks. Frontend renders a colour badge inline:
+- **Green** — Faithful (4–5 / 5)
+- **Yellow** — Moderate (3 / 5)
+- **Red** — Low (1–2 / 5)
 
-### 2. Precision@K Benchmarking
-20 ground-truth query/source pairs covering UPI, banking, lending, and RBI policy. The Eval Dashboard runs them all and reports mean Precision@5 plus per-query breakdown.
+### RAGAS Benchmark
+Four metrics evaluated against a 20-pair ground-truth set, run locally via `scripts/run_ragas_local.py` and committed as a static JSON. Dashboard reads from the file — no live eval latency.
 
-### 3. Chunk Size Benchmarking
-`scripts/benchmark_chunks.py` wipes the index and re-ingests at different chunk sizes (200/300/500/750/1000), runs Precision@K at each, and produces a PNG chart showing which chunk size works best for your corpus.
+| Metric | Score |
+|--------|-------|
+| faithfulness | 1.0 |
+| answer_relevancy | 0.90 |
+| context_precision | TBD |
+| context_recall | TBD |
 
-### 4. Retrieval Health Dashboard
-Traffic-light indicator based on rolling faithfulness scores. Red = retrieval is degrading, yellow = mixed, green = healthy.
+> Note: faithfulness 1.0 is directional — eval queries are matched to the demo corpus. Run on held-out queries for honest numbers.
 
----
-
-## Repository Structure
-
-```
-finrag/
-├── server/              # FastAPI backend
-│   ├── main.py          # App entrypoint, CORS, lifespan
-│   ├── routes/          # chat.py, eval.py, upload.py
-│   ├── ingest.py        # Load → chunk → embed → store (idempotent)
-│   ├── retriever.py     # Query ChromaDB, return top-K + scores
-│   ├── chain.py         # ConversationalRetrievalChain assembly
-│   ├── memory.py        # Conversation memory management
-│   ├── eval/
-│   │   ├── precision.py     # Precision@K computation
-│   │   └── faithfulness.py  # LLM-as-Judge scorer
-│   └── utils.py
-│
-├── frontend/            # React 19 + Vite + Tailwind
-│   └── src/
-│       ├── App.jsx
-│       ├── api.js
-│       └── components/  # ChatTab, EvalDashboard, MessageBubble, SourceExpander
-│
-├── scripts/
-│   ├── run_ingest.py         # CLI: ingest documents
-│   ├── run_eval.py           # CLI: batch Precision@K
-│   └── benchmark_chunks.py   # CLI: benchmark across chunk sizes
-│
-├── data/ground_truth/
-│   └── eval_pairs.json       # 20 query/source pairs for Precision@K
-│
-├── sample_data/              # Sample fintech documents
-├── config.yaml               # Chunking, retrieval, eval params
-├── Dockerfile                # Backend-only (frontend deploys to Vercel)
-├── render.yaml               # Render Blueprint
-└── requirements.txt
-```
+### Precision@K
+Batch Precision@K against 20 pre-built eval queries via `scripts/run_eval.py`.
 
 ---
 
@@ -138,32 +112,28 @@ finrag/
 ### Prerequisites
 - Python 3.11+
 - Node.js 20+
-- A Groq API key (https://console.groq.com) — free tier works
-- A Euron API key (https://euron.one) — used for embeddings only
+- [Groq API key](https://console.groq.com) — free tier works
+- [Euron API key](https://euron.one) — used for embeddings only
 
 ### Backend
 
 ```bash
-# Clone
-git clone https://github.com/BenRoshan100/fin-rag.git
-cd fin-rag
+git clone https://github.com/BenRoshan100/Prism.git
+cd Prism
 
-# Python deps
 python -m venv venv
-venv\Scripts\activate       # Windows
-# source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # macOS/Linux
+
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 
-# Env vars
 cp .env.example .env
-# Then fill in GROQ_API_KEY and EURON_API_KEY in .env
+# Fill in GROQ_API_KEY and EURON_API_KEY
 
-# Ingest sample documents
 python scripts/run_ingest.py --data-dir sample_data
-
-# Start backend
 uvicorn server.main:app --reload
-# Backend now at http://localhost:8000
+# Backend at http://localhost:8000
 ```
 
 ### Frontend
@@ -175,91 +145,91 @@ npm run dev
 # Frontend at http://localhost:5173
 ```
 
-Open http://localhost:5173 and ask a question.
+### Run RAGAS eval locally
 
----
-
-## Running the Eval Suite
-
-### Batch Precision@K
 ```bash
-python scripts/run_eval.py
+python scripts/run_ragas_local.py --n 10
+# Writes frontend/src/data/ragas_benchmark.json
 ```
-Runs all 20 ground-truth queries and prints mean Precision@5 plus per-query scores. Saves results to `eval_results_<timestamp>.json`.
-
-### Chunk size benchmark
-```bash
-python scripts/benchmark_chunks.py --data-dir sample_data
-```
-Re-ingests at chunk sizes 200/300/500/750/1000, runs Precision@K at each, and saves a comparison chart as `benchmark_precision_<timestamp>.png`. Use this to pick the optimal chunk size for your documents.
 
 ---
 
 ## Deployment
 
-The app is split across two free-tier platforms:
-
 | Service | Platform | Notes |
 |---|---|---|
-| Backend | Render (Docker) | Free tier, 512MB RAM. API-based embeddings keep it within the limit. |
+| Backend | Render (Docker) | 512MB RAM free tier. CPU-only torch + TinyBERT reranker keeps it within limit. |
 | Frontend | Vercel | Free tier, auto-deploys from `main` branch. |
 
 ### Backend on Render
 1. Push to GitHub
 2. Render → New Web Service → connect repo (runtime: Docker)
-3. Set env vars: `GROQ_API_KEY` (LLM) and `EURON_API_KEY` (embeddings)
+3. Set env vars: `GROQ_API_KEY`, `EURON_API_KEY`, `TAVILY_API_KEY`, `LANGCHAIN_API_KEY`
 4. Deploy
 
 ### Frontend on Vercel
 1. Vercel → Import repo
 2. Root Directory: `frontend`
-3. Framework: Vite (auto-detected)
-4. Set env var: `VITE_API_URL=https://<your-backend>.onrender.com/api`
-5. Deploy
-
-CORS is configured with a regex that accepts all `*.vercel.app` origins, so preview deployments work automatically.
-
-### Why API-based embeddings?
-The original design used `sentence-transformers/all-MiniLM-L6-v2` for local embeddings. That loads a ~400MB PyTorch model into RAM, which **crashes Render's 512MB free tier on startup**. Swapping to API-based embeddings (Euron's OpenAI-compatible endpoint) drops backend memory to ~150MB and keeps everything free.
+3. Set env var: `VITE_API_URL=https://<your-backend>.onrender.com/api`
+4. Deploy
 
 ---
 
-## Configuration
+## Repository Structure
 
-Edit [`config.yaml`](config.yaml):
-
-```yaml
-chunking:
-  chunk_size: 500
-  chunk_overlap: 50
-
-retrieval:
-  k: 5
-  collection_name: "finrag"
-
-memory:
-  max_token_limit: 2000
-
-llm:
-  model: "gpt-4.1-mini"
-  base_url: "https://api.euron.one/api/v1/euri"
-  max_tokens: 1000
-  temperature: 0.1
-
-eval:
-  ground_truth_path: "data/ground_truth/eval_pairs.json"
-  precision_k: 5
+```
+prism/
+├── server/
+│   ├── main.py              # FastAPI app, lifespan startup
+│   ├── ingest.py            # Load → ParentDocumentRetriever → embed → store
+│   ├── retriever.py         # HybridRetriever: dense + BM25 + RRF + reranker (cached per workspace)
+│   ├── bm25_index.py        # BM25 singleton
+│   ├── reranker.py          # CrossEncoder singleton (TinyBERT-L-2-v2)
+│   ├── chain.py             # ConversationalRetrievalChain + web query path
+│   ├── web_search.py        # Tavily search with content truncation
+│   ├── url_loader.py        # URL ingestion with size guard
+│   ├── memory.py            # ConversationBufferWindowMemory
+│   ├── utils.py             # Config, logger, token counter
+│   └── routes/
+│       ├── chat.py          # POST /api/chat, DELETE /api/chat/memory
+│       ├── upload.py        # POST /api/upload
+│       ├── eval.py          # GET /api/eval/session, POST /api/eval/precision
+│       └── workspaces.py    # Workspace CRUD
+│
+├── frontend/src/
+│   ├── App.jsx              # Workspace switcher + tab nav
+│   ├── api.js               # Axios client
+│   └── components/
+│       ├── Sidebar.jsx      # Workspace list + doc list
+│       ├── ChatArea.jsx     # Chat UI (remounts on workspace switch)
+│       ├── MessageBubble.jsx # Answer + faithfulness badge + web sources
+│       ├── EvalPanel.jsx    # RAGAS scorecard + session log
+│       └── FileUpload.jsx   # Drag-and-drop upload
+│
+├── scripts/
+│   ├── run_ingest.py        # CLI ingestion
+│   ├── run_eval.py          # CLI Precision@K
+│   └── run_ragas_local.py   # Local RAGAS eval → writes ragas_benchmark.json
+│
+├── data/ground_truth/
+│   └── eval_pairs.json      # 20 query/chunk pairs with ground_truth answers
+│
+├── sample_data/             # Demo documents
+├── config.yaml              # All tunable params
+├── Dockerfile
+└── requirements.txt
 ```
 
 ---
 
 ## Design Decisions Worth Noting
 
-- **Idempotent ingestion** — documents get hashed to deterministic IDs. Re-running ingestion doesn't duplicate chunks.
-- **Content-hash chunk IDs** — `md5(source + page + text)` means the same chunk always gets the same ID, even across re-runs.
-- **CORS regex over exact match** — Vercel generates a unique preview URL per deploy. A regex match on `*.vercel.app` handles all of them without needing to update env vars.
-- **Lifespan events over startup events** — FastAPI's modern lifespan context manager initializes the chain once at boot and attaches it to `app.state`.
-- **API embeddings over local** — traded a local model for an API call. Makes each upload slightly slower, but the backend fits in free-tier RAM.
+- **Singleton retriever cache per workspace** — without cache, every request rebuilt the Chroma instance (full embedding reload) → OOM after 2–3 queries. Cache invalidated after ingest.
+- **CPU-only torch in Dockerfile** — sentence-transformers pulls CUDA torch (~2GB) by default, OOMing Render 512MB before uvicorn binds port. Pre-installing CPU torch (~200MB) is mandatory.
+- **RAGAS pre-computed locally** — `nest_asyncio` cannot patch `uvloop` (uvicorn's event loop on Linux). Live RAGAS eval on Render always 500s. Run locally, commit JSON, Vercel reads file.
+- **TinyBERT-L-2-v2 reranker** — MiniLM-L-6-v2 (~85MB) + base memory exceeded 512MB on web queries. TinyBERT (~17MB) saves 68MB permanently.
+- **Web search bypasses chain** — `ConversationalRetrievalChain` condensation step strips prepended Tavily context before LLM sees it. Web path uses direct LLM call with chat history.
+- **Idempotent ingestion** — chunk IDs are `md5(source + page + text)`. Re-ingesting same doc does not duplicate chunks.
 
 ---
 
@@ -267,4 +237,4 @@ eval:
 
 **Ben Roshan D** — [github.com/BenRoshan100](https://github.com/BenRoshan100)
 
-Built as a portfolio project demonstrating production RAG with observability. The eval layer is the differentiator — most RAG portfolios skip it.
+Built as a portfolio project demonstrating production RAG with a full evaluation layer. The retrieval scoring and RAGAS integration are the differentiators — most RAG portfolios skip eval entirely.

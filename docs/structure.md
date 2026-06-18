@@ -1,7 +1,7 @@
-# Project Structure — FinRAG v2
+# Project Structure — Prism
 
 ```
-finrag/
+prism/
 ├── CLAUDE.md
 ├── README.md
 ├── requirements.txt
