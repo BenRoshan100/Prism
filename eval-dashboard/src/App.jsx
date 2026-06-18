@@ -155,6 +155,7 @@ export default function App() {
                   key={m.key}
                   label={m.label}
                   description={m.description}
+                  methodology={m.methodology}
                   value={currentRun.metrics?.[m.key]}
                   prevValue={prevRun?.metrics?.[m.key]}
                 />

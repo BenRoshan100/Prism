@@ -374,7 +374,7 @@ HyDE:         Implemented, toggled via config.yaml hyde_enabled (default: false)
 Eval:         Separate eval-dashboard/ static site → https://askprism-eval.vercel.app/
               Metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency
               Script: scripts/run_eval_versioned.py --version vX.Y --tag "..." --n 50
-              50 eval pairs; v2.0 baseline run: correctness=0.75, relevancy=0.84, recall=0.70, P@5=0.89
+              50 eval pairs; v1.0 baseline: correctness=0.82, relevancy=0.62, recall=0.51, P@5=0.89, p50=2029ms
               No per-message faithfulness badge in user UI
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
 Infra:        Render (backend) + https://askprism.vercel.app/ (frontend) + https://askprism-eval.vercel.app/ (eval)
