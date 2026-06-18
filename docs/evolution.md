@@ -373,8 +373,9 @@ Web search:   Tavily advanced, 800-char truncation, max 2 results — MANDATORY 
 HyDE:         Implemented, toggled via config.yaml hyde_enabled (default: false)
 Eval:         Separate eval-dashboard/ static site → https://askprism-eval.vercel.app/
               Metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency
-              Script: scripts/run_eval_versioned.py --version vX.Y --tag "..." --n 50
-              50 eval pairs; v1.0 baseline: correctness=0.82, relevancy=0.62, recall=0.51, P@5=0.89, p50=2029ms
+              Script: scripts/run_eval_versioned.py --version v1.1.0 --tag "Indigo" --n 50
+              50 eval pairs; v1.0.0 "Violet": correctness=0.82, relevancy=0.62, recall=0.51, P@5=0.89, p50=2029ms
+              Versioning: v1.0.0 / v1.1.0 (feature) / v1.0.1 (fix) / v2.0.0 (major arch change)
               No per-message faithfulness badge in user UI
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
 Infra:        Render (backend) + https://askprism.vercel.app/ (frontend) + https://askprism-eval.vercel.app/ (eval)
