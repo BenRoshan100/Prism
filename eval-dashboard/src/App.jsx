@@ -7,22 +7,26 @@ const METRIC_DEFS = [
   {
     key: 'answer_correctness',
     label: 'Answer Correctness',
-    description: 'LLM judge (8B) comparing generated answer to ground truth. 0–1 normalized.',
+    description: 'Are key facts in the generated answer correct vs the reference?',
+    methodology: 'LLM-as-Judge: llama-3.1-8b scores each answer 1–5 against a human-written ground truth. Prompt checks for key facts present and correct. Score normalized to 0–1 (÷5). Independent of retrieved docs — judge only sees answer + reference.',
   },
   {
     key: 'answer_relevancy',
     label: 'Answer Relevancy',
-    description: 'RAGAS: does the answer address the question? Penalizes off-topic responses.',
+    description: 'Does the answer actually address the question asked?',
+    methodology: 'RAGAS metric. Generates N reverse questions from the answer using an LLM, embeds them, then measures cosine similarity to the original question embedding. High = answer stays on-topic. Low = vague, padded, or off-topic response. Does not require ground truth.',
   },
   {
     key: 'context_recall',
     label: 'Context Recall',
-    description: 'RAGAS: did retrieval surface all chunks needed to answer? Higher = less missing context.',
+    description: 'Did retrieval surface all the chunks needed to answer correctly?',
+    methodology: 'RAGAS metric. Breaks the ground truth reference into individual sentences. For each sentence, an LLM checks whether it can be attributed to the retrieved context. Score = attributed sentences ÷ total ground truth sentences. Requires ground truth.',
   },
   {
     key: 'precision_at_5',
     label: 'Precision@5',
-    description: 'Retrieval: what fraction of top-5 chunks are relevant? Based on source + keyword match.',
+    description: 'What fraction of the top-5 retrieved chunks were actually relevant?',
+    methodology: 'Custom metric. For each of the 5 reranked chunks returned: checks if the source filename matches the expected document AND if relevant keywords from the eval pair appear in the chunk text. Score = matching chunks ÷ 5. No LLM call — deterministic.',
   },
 ]
 
