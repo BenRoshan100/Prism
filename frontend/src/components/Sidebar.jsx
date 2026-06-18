@@ -1,6 +1,5 @@
 import { useState } from "react";
 import FileUpload from "./FileUpload";
-import EvalPanel from "./EvalPanel";
 import { deleteDocument } from "../api";
 
 function NewWorkspaceInput({ onCreated }) {
@@ -51,33 +50,6 @@ function NewWorkspaceInput({ onCreated }) {
   );
 }
 
-function TrafficLight({ faithfulnessMean }) {
-  let color, label;
-
-  if (faithfulnessMean === null) {
-    color = "bg-gray-300";
-    label = "No data";
-  } else {
-    const fNorm = faithfulnessMean / 5;
-    if (fNorm < 0.5) {
-      color = "bg-red-500";
-      label = "Poor";
-    } else if (fNorm < 0.7) {
-      color = "bg-yellow-500";
-      label = "Moderate";
-    } else {
-      color = "bg-green-500";
-      label = "Healthy";
-    }
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className={`w-3 h-3 rounded-full ${color} ring-2 ring-offset-1 ring-${color === "bg-gray-300" ? "gray-200" : color.replace("bg-", "")}/30`} />
-      <span className="text-sm font-medium text-gray-700">{label}</span>
-    </div>
-  );
-}
 
 export default function Sidebar({
   documents,
@@ -106,13 +78,6 @@ export default function Sidebar({
       setDeletingDoc(null);
     }
   }
-
-  const faithfulnessScores = evalLog.filter((e) => e.faithfulness_score > 0);
-  const faithfulnessMean =
-    faithfulnessScores.length > 0
-      ? faithfulnessScores.reduce((s, e) => s + e.faithfulness_score, 0) /
-        faithfulnessScores.length
-      : null;
 
   return (
     <aside className="w-80 bg-white border-r border-gray-100 flex flex-col shrink-0 h-[calc(100vh-65px)] overflow-y-auto">
@@ -232,56 +197,22 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* Faithfulness Log */}
-        <div className="bg-gray-50/80 rounded-xl p-3.5">
-          <h3 className="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-2.5">
-            Faithfulness ({evalLog.length} queries)
-          </h3>
-          {evalLog.length > 0 ? (
-            <div className="flex gap-1.5 flex-wrap">
-              {evalLog.slice(-10).map((e, i) => (
-                <span
-                  key={i}
-                  title={e.reason}
-                  className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold text-white shadow-sm ${
-                    e.faithfulness_score >= 4
-                      ? "bg-green-500"
-                      : e.faithfulness_score === 3
-                      ? "bg-yellow-500"
-                      : e.faithfulness_score > 0
-                      ? "bg-red-500"
-                      : "bg-gray-300"
-                  }`}
-                >
-                  {e.faithfulness_score > 0 ? e.faithfulness_score : "?"}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-400">No queries yet</p>
-          )}
-        </div>
+      </div>
 
-        {/* Retrieval Health */}
-        <div className="bg-gray-50/80 rounded-xl p-3.5">
-          <h3 className="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-2.5">
-            Retrieval Health
-          </h3>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400">Mean Faithfulness</p>
-              <p className="text-lg font-semibold text-gray-800">
-                {faithfulnessMean !== null
-                  ? `${faithfulnessMean.toFixed(1)}/5`
-                  : "--"}
-              </p>
-            </div>
-            <TrafficLight faithfulnessMean={faithfulnessMean} />
-          </div>
-        </div>
-
-        {/* RAGAS Benchmark */}
-        <EvalPanel />
+      {/* Eval dashboard link */}
+      <div className="mt-auto p-4 border-t border-gray-100">
+        <a
+          href="https://askprism-eval.vercel.app/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 text-xs text-gray-400 hover:text-indigo-600 transition-colors group"
+        >
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <span className="group-hover:underline">Eval Dashboard →</span>
+        </a>
       </div>
     </aside>
   );

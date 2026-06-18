@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import MetricCard from './components/MetricCard'
 import EvolutionChart from './components/EvolutionChart'
-import RunTable from './components/RunTable'
 import LatencyStats from './components/LatencyStats'
 
 const METRIC_DEFS = [
@@ -166,8 +165,6 @@ export default function App() {
               <LatencyStats metrics={currentRun.metrics} />
             </div>
 
-            {/* Per-query table */}
-            <RunTable perQuery={currentRun.per_query} />
           </>
         )}
       </main>
