@@ -1,7 +1,7 @@
 # Prism — Project Evolution
 
 > End-to-end record of what was broken at each stage, what was built to fix it, and what is planned next.
-> Updated as the project evolves. Last updated: 2026-06-15.
+> Updated as the project evolves. Last updated: 2026-06-18.
 
 ---
 
@@ -14,8 +14,9 @@
 5. [Stage 4 — OOM Hell on Render](#stage-4--oom-hell-on-render-2026-05-24-four-sub-issues)
 6. [Stage 5 — TinyBERT + RAGAS Removal + Benchmark JSON](#stage-5--tinybert--ragas-removal--benchmark-json-2026-05-30)
 7. [Stage 6 — Multi-Workspace](#stage-6--multi-workspace-2026-06-early)
-8. [Stage 7 — Singleton Cache + URL Guard](#stage-7--singleton-cache--url-guard-2026-06-14--current)
-9. [Current State Snapshot](#current-state-snapshot)
+8. [Stage 7 — Singleton Cache + URL Guard](#stage-7--singleton-cache--url-guard-2026-06-14)
+9. [Stage 8 — Eval Dashboard + Rigorous Metrics](#stage-8--eval-dashboard--rigorous-metrics-2026-06-17)
+10. [Current State Snapshot](#current-state-snapshot)
 10. [Roadmap — Retrieval & Answer Quality](#roadmap--retrieval--answer-quality)
 11. [Roadmap — New Features](#roadmap--new-features)
 
@@ -370,14 +371,14 @@ Chunking:     ParentDocumentRetriever (child 200-char indexed, parent 800-char t
 Memory:       ConversationBufferWindowMemory k=10
 Web search:   Tavily advanced, 800-char truncation, max 2 results — MANDATORY (always on)
 HyDE:         Implemented, toggled via config.yaml hyde_enabled (default: false)
-Eval:         Separate eval-dashboard/ static site (own Vercel project)
+Eval:         Separate eval-dashboard/ static site → https://askprism-eval.vercel.app/
               Metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency
               Script: scripts/run_eval_versioned.py --version vX.Y --tag "..." --n 50
-              50 eval pairs (up from 10 samples)
+              50 eval pairs; v2.0 baseline run: correctness=0.75, relevancy=0.84, recall=0.70, P@5=0.89
               No per-message faithfulness badge in user UI
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
-Infra:        Render 512MB (base ~230MB, headroom ~280MB) + Vercel frontend + Vercel eval dashboard
-Observability: LangSmith traces all LLM + retrieval calls
+Infra:        Render (backend) + https://askprism.vercel.app/ (frontend) + https://askprism-eval.vercel.app/ (eval)
+Observability: LangSmith traces all LLM + retrieval calls (optional, env var)
 ```
 
 ---
@@ -386,14 +387,11 @@ Observability: LangSmith traces all LLM + retrieval calls
 
 ### Phase 1 — Quick wins (no infra change, measurable RAGAS lift)
 
-#### HyDE (Hypothetical Document Embeddings)
-- **Problem:** Raw query `"UPI volume FY24"` lives in a different embedding space than the answer. Short queries have low information density.
-- **How:** Generate a hypothetical 2-sentence answer (LLM, no RAG), embed that instead of the raw query, use the vector for ChromaDB ANN search.
-- **Why it works:** Hypothetical answer lands closer to real answer chunks in embedding space than the query does.
-- **Effort:** ~15 lines wrapping `dense_retrieve()`. One extra Groq call (~200ms). Toggle in config.
-- **Expected lift:** RAGAS context_recall +5–15% on vague queries.
+#### ~~HyDE (Hypothetical Document Embeddings)~~ ✅ Done (Stage 7, commit 8945b43)
+- Implemented in `server/retriever.py`. Toggle: `config.yaml hyde_enabled` (default: false).
+- Enable + re-run eval to measure context_recall lift vs v2.0 baseline (0.70).
 
-#### Multi-Query Retrieval
+#### Multi-Query Retrieval ← Next
 - **Problem:** Single phrasing has blind spots. `"UPI volume FY24"` misses `"transactions processed in financial year 2023-24"`.
 - **How:** LLM generates 3 phrasings of the query → retrieve for each → pool all candidates → deduplicate by chunk ID → RRF merge → rerank.
 - **Why it works:** Wider candidate pool before reranker = higher recall. Reranker then picks best 5 from 30 instead of 10.
