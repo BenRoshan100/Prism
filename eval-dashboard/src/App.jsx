@@ -87,7 +87,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-base font-semibold text-gray-900">Prism Eval Dashboard</h1>
-              <p className="text-xs text-gray-400">Developer benchmark — not shown to users</p>
+              <p className="text-xs text-gray-400">Retrieval & answer quality metrics</p>
             </div>
           </div>
 
