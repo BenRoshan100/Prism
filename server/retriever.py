@@ -56,9 +56,39 @@ class HybridRetriever(BaseRetriever):
     rerank_k: int = 5
     workspace_id: str = "default"
     use_hyde: bool = False
+    use_multi_query: bool = False
 
     class Config:
         arbitrary_types_allowed = True
+
+    def _multi_query_expand(self, query: str) -> list[str]:
+        """Generate 3 rephrased versions of the query to widen retrieval pool."""
+        import os
+        from langchain_groq import ChatGroq
+        from langchain_core.messages import HumanMessage
+
+        config = load_config()
+        llm = ChatGroq(
+            model=config["llm"]["model"],
+            api_key=os.environ.get("GROQ_API_KEY", ""),
+            temperature=0.3,
+            max_tokens=200,
+        )
+        prompt = (
+            "Generate 3 different phrasings of the following question for document retrieval. "
+            "Each phrasing must use different vocabulary but seek the same information. "
+            "Return ONLY the 3 questions, one per line, no numbering, no preamble.\n\n"
+            f"Question: {query}"
+        )
+        try:
+            response = llm.invoke([HumanMessage(content=prompt)])
+            lines = [ln.strip() for ln in response.content.strip().split("\n") if ln.strip()]
+            queries = [query] + lines[:3]
+            logger.info("Multi-query: %d phrasings for '%s'", len(queries), query[:50])
+            return queries
+        except Exception as e:
+            logger.warning("Multi-query expansion failed, falling back to raw query: %s", e)
+            return [query]
 
     def _hyde_expand(self, query: str) -> str:
         """Generate a hypothetical answer and use it as the dense search query.
@@ -134,10 +164,31 @@ class HybridRetriever(BaseRetriever):
         from server.bm25_index import get_index
         from server.reranker import rerank
 
-        dense_query = self._hyde_expand(query) if self.use_hyde else query
-        dense_results = self._dense_retrieve(dense_query, k=self.retrieve_k)
-        sparse_results = get_index(self.workspace_id).search(query, k=self.retrieve_k)
-        fused = self._rrf_fuse(dense_results, sparse_results)
+        queries = self._multi_query_expand(query) if self.use_multi_query else [query]
+
+        # Collect results across all query phrasings; keep best rank per unique chunk
+        dense_seen: dict[str, tuple[int, dict]] = {}
+        sparse_seen: dict[str, tuple[int, dict]] = {}
+
+        for q in queries:
+            dense_query = self._hyde_expand(q) if self.use_hyde else q
+            d_results = self._dense_retrieve(dense_query, k=self.retrieve_k)
+            s_results = get_index(self.workspace_id).search(q, k=self.retrieve_k)
+
+            for rank, doc in enumerate(d_results):
+                key = doc["content"][:120]
+                if key not in dense_seen or rank < dense_seen[key][0]:
+                    dense_seen[key] = (rank, doc)
+
+            for rank, doc in enumerate(s_results):
+                key = doc["content"][:120]
+                if key not in sparse_seen or rank < sparse_seen[key][0]:
+                    sparse_seen[key] = (rank, doc)
+
+        dense_pool = [doc for _, doc in sorted(dense_seen.values(), key=lambda x: x[0])]
+        sparse_pool = [doc for _, doc in sorted(sparse_seen.values(), key=lambda x: x[0])]
+
+        fused = self._rrf_fuse(dense_pool, sparse_pool)
         reranked = rerank(query, fused[: self.retrieve_k], top_k=self.rerank_k)
 
         docs = []
@@ -170,6 +221,7 @@ def get_retriever(workspace_id: str = DEFAULT_WORKSPACE) -> HybridRetriever:
             rerank_k=retrieval_cfg.get("rerank_k", 5),
             workspace_id=workspace_id,
             use_hyde=retrieval_cfg.get("hyde_enabled", False),
+            use_multi_query=retrieval_cfg.get("multi_query_enabled", False),
         )
     return _retriever_cache[workspace_id]
 

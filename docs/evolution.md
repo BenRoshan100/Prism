@@ -1,7 +1,7 @@
 # Prism — Project Evolution
 
 > End-to-end record of what was broken at each stage, what was built to fix it, and what is planned next.
-> Updated as the project evolves. Last updated: 2026-06-18.
+> Updated as the project evolves. Last updated: 2026-06-19.
 
 ---
 
@@ -16,8 +16,9 @@
 7. [Stage 6 — Multi-Workspace](#stage-6--multi-workspace-2026-06-early)
 8. [Stage 7 — Singleton Cache + URL Guard](#stage-7--singleton-cache--url-guard-2026-06-14)
 9. [Stage 8 — Eval Dashboard + Rigorous Metrics](#stage-8--eval-dashboard--rigorous-metrics-2026-06-17)
-10. [Current State Snapshot](#current-state-snapshot)
-10. [Roadmap — Retrieval & Answer Quality](#roadmap--retrieval--answer-quality)
+10. [Stage 9 — Multi-Query Retrieval](#stage-9--multi-query-retrieval-2026-06-19)
+11. [Current State Snapshot](#current-state-snapshot)
+12. [Roadmap — Retrieval & Answer Quality](#roadmap--retrieval--answer-quality)
 11. [Roadmap — New Features](#roadmap--new-features)
 
 ---
@@ -361,6 +362,35 @@ Every query now hits Tavily + RAG corpus. `run_query_with_web` always called wit
 
 ---
 
+## Stage 9 — Multi-Query Retrieval (2026-06-19)
+
+### What was wrong
+- context_recall = 0.51 in v1.0.0 Violet — retriever missed ~half the relevant chunks
+- Single-phrasing retrieval only surfaces chunks whose vocabulary matches the query tokens
+- Chunks expressing same concept with different words (e.g. "PSP ceiling" vs "merchant limit") never entered the candidate pool
+
+### What we built
+
+| File | Change |
+|------|--------|
+| `server/retriever.py` | `_multi_query_expand()` — Groq LLM generates 3 phrasings (temperature=0.3). `_get_relevant_documents()` iterates all phrasings, deduplicates by content key keeping best rank, RRF fuses pooled results, reranks with original query. |
+| `config.yaml` | `retrieval.multi_query_enabled: false` toggle |
+| `docs/learning.md` | Concept 17 — Multi-Query Retrieval |
+
+### Key design decisions
+- **Deduplication keeps best rank** — a chunk at rank 1 in one phrasing and rank 8 in another enters RRF at rank 1, not 8
+- **Reranker uses original query** — phrasings widen the pool; the reranker judges relevance against what the user actually asked
+- **Off by default** — adds one Groq call per query (~200ms). Enable → run v1.1.0 "Indigo" eval → measure delta → decide
+- **retrieve_k cap maintained** — reranker input capped at `retrieve_k` even with wider pool, preserving RAM budget on Render
+
+### Expected outcome
+- context_recall: 0.51 → measurably higher (target: >0.65)
+- P@5: ~0.89 (no degradation expected — reranker filters noise from wider pool)
+- Latency: +200–300ms per query (one extra Groq call for phrasing generation)
+- Next eval run: `scripts/run_eval_versioned.py --version v1.1.0 --tag "Indigo" --n 50`
+
+---
+
 ## Current State Snapshot
 
 ```
@@ -371,10 +401,15 @@ Chunking:     ParentDocumentRetriever (child 200-char indexed, parent 800-char t
 Memory:       ConversationBufferWindowMemory k=10
 Web search:   Tavily advanced, 800-char truncation, max 2 results — MANDATORY (always on)
 HyDE:         Implemented, toggled via config.yaml hyde_enabled (default: false)
+Multi-Query:  Implemented, toggled via config.yaml multi_query_enabled (default: false)
+              Generates 3 phrasings → retrieve each → deduplicate by best rank → RRF → rerank
 Eval:         Separate eval-dashboard/ static site → https://askprism-eval.vercel.app/
               Metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency
-              Script: scripts/run_eval_versioned.py --version v1.1.0 --tag "Violet" --n 50
+              Script: scripts/run_eval_versioned.py --version v1.1.0 --tag "Indigo" --n 50
               50 eval pairs; v1.0.0 "Violet": correctness=0.82, relevancy=0.62, recall=0.51, P@5=0.89, p50=2029ms
+              v1.1.0 "Violet" (hyde=true):  correctness=0.815, relevancy=0.650, recall=0.545, P@5=0.912, p50=5883ms — recall +3.5% but latency 3×, not worth it
+              v1.2.0 "Violet" (multi_query=true): correctness=0.815, relevancy=0.597, recall=0.517, P@5=0.892, p50=2620ms — +0.7% recall, relevancy dropped, Phase 1 exhausted
+              Phase 1 conclusion: recall=0.51 is a chunking/ingestion problem, not query formulation. Moving to Phase 2 (Contextual Retrieval).
               Versioning: MAJOR.MINOR.PATCH — name changes on MAJOR only (v1.x.x=Violet, v2.x.x=Indigo, v3.x.x=Azure)
               No per-message faithfulness badge in user UI
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
@@ -392,12 +427,9 @@ Observability: LangSmith traces all LLM + retrieval calls (optional, env var)
 - Implemented in `server/retriever.py`. Toggle: `config.yaml hyde_enabled` (default: false).
 - Enable + re-run eval to measure context_recall lift vs v2.0 baseline (0.70).
 
-#### Multi-Query Retrieval ← Next
-- **Problem:** Single phrasing has blind spots. `"UPI volume FY24"` misses `"transactions processed in financial year 2023-24"`.
-- **How:** LLM generates 3 phrasings of the query → retrieve for each → pool all candidates → deduplicate by chunk ID → RRF merge → rerank.
-- **Why it works:** Wider candidate pool before reranker = higher recall. Reranker then picks best 5 from 30 instead of 10.
-- **Effort:** ~30 lines. 3× retrieval calls + 1 LLM call. Parallelise with `asyncio.gather` to limit latency hit.
-- **Expected lift:** RAGAS context_recall measurably improves on multi-phrasing queries.
+#### ~~Multi-Query Retrieval~~ ✅ Done (Stage 9, 2026-06-19)
+- Implemented in `server/retriever.py`. Toggle: `config.yaml multi_query_enabled` (default: false).
+- Enable + run `scripts/run_eval_versioned.py --version v1.1.0 --tag "Indigo" --n 50` to measure context_recall lift vs 0.51.
 
 ---
 
