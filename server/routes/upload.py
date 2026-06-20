@@ -1,14 +1,18 @@
+import copy
 from pathlib import Path
 
-from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Request, UploadFile, File, Form, HTTPException, Query
 from pydantic import BaseModel
 
-from server.ingest import ingest_files
+from server.ingest import (
+    ingest_files, load_documents_from_paths, chunk_documents,
+    embed_and_store, contextualize_chunks_async,
+)
 from server.retriever import get_document_stats, get_retriever, get_vectorstore, invalidate_cache
 from server.bm25_index import build_from_vectorstore
 from server.chain import build_qa_chain
 from server.memory import create_memory
-from server.utils import setup_logger
+from server.utils import setup_logger, load_config
 from server.briefing import generate_briefing
 
 logger = setup_logger(__name__)
@@ -19,15 +23,58 @@ UPLOAD_DIR = Path("data/raw")
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".csv"}
 
 
+def _rebuild_chain(app, workspace: str) -> None:
+    invalidate_cache(workspace)
+    build_from_vectorstore(get_vectorstore(workspace), workspace_id=workspace)
+    app.state.retriever = get_retriever(workspace)
+    app.state.memory = create_memory()
+    app.state.chain = build_qa_chain(app.state.retriever, app.state.memory)
+
+
+async def _contextual_refresh_bg(
+    app,
+    documents: list,
+    original_chunks: list,
+    workspace: str,
+    ctx_model: str,
+    source_filenames: list[str],
+    max_concurrent: int = 20,
+) -> None:
+    """Background: replace non-contextual chunks with parallel-async contextual versions."""
+    try:
+        logger.info(
+            "Contextual refresh start: workspace=%s, %d chunks, model=%s, concurrency=%d",
+            workspace, len(original_chunks), ctx_model, max_concurrent,
+        )
+        ctx_chunks = copy.deepcopy(original_chunks)
+        await contextualize_chunks_async(ctx_chunks, documents, model=ctx_model, max_concurrent=max_concurrent)
+
+        vs = get_vectorstore(workspace)
+        for filename in source_filenames:
+            result = vs.get(where={"source": filename})
+            old_ids = result.get("ids", [])
+            if old_ids:
+                vs.delete(ids=old_ids)
+                logger.info("Deleted %d non-contextual chunks for %s", len(old_ids), filename)
+
+        embed_and_store(ctx_chunks, collection_name=workspace)
+        _rebuild_chain(app, workspace)
+        logger.info("Contextual refresh done: workspace=%s", workspace)
+    except Exception as e:
+        logger.error("Contextual refresh failed: workspace=%s: %s", workspace, e)
+
+
 @router.post("/upload")
 async def upload_files(
     request: Request,
+    background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     workspace: str = Form("default"),
 ):
     """
     Accept file uploads (PDF, TXT, CSV).
     Save to data/raw/, run ingestion into the given workspace, rebuild chain.
+    If contextual_retrieval.enabled, schedules async background contextualization after fast initial embed.
     """
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -43,10 +90,14 @@ async def upload_files(
         saved_paths.append(str(dest))
         logger.info(f"Saved uploaded file: {f.filename} (workspace={workspace})")
 
-    # Run ingestion on uploaded files into workspace collection
-    ingest_files(saved_paths, collection_name=workspace)
+    # Load + chunk (fast)
+    documents = load_documents_from_paths(saved_paths)
+    chunks = chunk_documents(documents)
 
-    # Generate briefing from first uploaded file's chunks
+    # Embed non-contextual immediately so user can query right away
+    embed_and_store(chunks, collection_name=workspace)
+
+    # Generate briefing from embedded chunks
     briefing = None
     try:
         vs = get_vectorstore(workspace)
@@ -57,15 +108,25 @@ async def upload_files(
     except Exception as e:
         logger.warning("Briefing skipped: %s", e)
 
-    # Rebuild BM25 index and chain with new data
-    invalidate_cache(workspace)
-    build_from_vectorstore(get_vectorstore(workspace), workspace_id=workspace)
-    request.app.state.retriever = get_retriever(workspace)
-    request.app.state.memory = create_memory()
-    request.app.state.chain = build_qa_chain(
-        request.app.state.retriever, request.app.state.memory
-    )
+    # Rebuild chain on non-contextual (queryable immediately)
+    _rebuild_chain(request.app, workspace)
     logger.info("Chain rebuilt after upload (workspace=%s)", workspace)
+
+    # Schedule background contextual replacement if enabled
+    cfg = load_config()
+    ctx_cfg = cfg.get("contextual_retrieval", {})
+    if ctx_cfg.get("enabled", False):
+        ctx_model = ctx_cfg.get("model", "llama-3.1-8b-instant")
+        source_filenames = [Path(p).name for p in saved_paths]
+        max_concurrent = ctx_cfg.get("max_concurrent", 20)
+        background_tasks.add_task(
+            _contextual_refresh_bg,
+            request.app, documents, chunks, workspace, ctx_model, source_filenames, max_concurrent,
+        )
+        logger.info(
+            "Contextual refresh scheduled: workspace=%s, %d chunks → ~%ds background",
+            workspace, len(chunks), max(5, len(chunks) // 4),
+        )
 
     docs = get_document_stats(workspace)
     return {
