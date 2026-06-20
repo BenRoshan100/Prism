@@ -199,19 +199,22 @@ export default function Sidebar({
 
       </div>
 
-      {/* Eval dashboard link */}
-      <div className="mt-auto p-4 border-t border-gray-100">
+      {/* Footer: version badge + eval link */}
+      <div className="mt-auto p-4 border-t border-gray-100 flex items-center justify-between">
+        <span className="text-xs text-gray-400 font-medium">
+          <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">Violet v1.3</span>
+        </span>
         <a
           href="https://askprism-eval.vercel.app/"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-xs text-gray-400 hover:text-indigo-600 transition-colors group"
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-600 transition-colors group"
         >
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
               d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
-          <span className="group-hover:underline">Eval Dashboard →</span>
+          <span className="group-hover:underline">Eval →</span>
         </a>
       </div>
     </aside>
