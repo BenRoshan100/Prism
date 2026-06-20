@@ -1,7 +1,7 @@
 # Prism — Project Evolution
 
 > End-to-end record of what was broken at each stage, what was built to fix it, and what is planned next.
-> Updated as the project evolves. Last updated: 2026-06-20.
+> Updated as the project evolves. Last updated: 2026-06-20 (Stage 11).
 
 ---
 
@@ -18,7 +18,8 @@
 9. [Stage 8 — Eval Dashboard + Rigorous Metrics](#stage-8--eval-dashboard--rigorous-metrics-2026-06-17)
 10. [Stage 9 — Multi-Query Retrieval](#stage-9--multi-query-retrieval-2026-06-19)
 11. [Stage 10 — Contextual Retrieval (Eval)](#stage-10--contextual-retrieval-eval-2026-06-20)
-12. [Current State Snapshot](#current-state-snapshot)
+12. [Stage 11 — Contextual Retrieval in Production + Dashboard Polish](#stage-11--contextual-retrieval-in-production--dashboard-polish-2026-06-20)
+13. [Current State Snapshot](#current-state-snapshot)
 13. [Roadmap — Retrieval & Answer Quality](#roadmap--retrieval--answer-quality)
 14. [Roadmap — New Features](#roadmap--new-features)
 
@@ -426,35 +427,70 @@ Phase 1 (HyDE + Multi-Query) left context_recall at ~0.51. Root cause confirmed:
 
 ---
 
+## Stage 11 — Contextual Retrieval in Production + Dashboard Polish (2026-06-20)
+
+### What was wrong
+- Contextual retrieval proven in eval (recall +18%) but never shipped to production — users got non-contextual chunks
+- eval-dashboard X-axis showed raw version strings (`v1.0.0`) with no dates
+- No version badge visible in main Prism UI
+- Encrypted PDFs caused 500 Internal Server Error instead of a clean user-facing message
+- `max_concurrent=20` for parallel Groq calls → 20k token burst → 429 TPM limit on free tier (6000 TPM)
+- Render free tier ephemeral filesystem: docs lost on every cold start (known limitation)
+- Upload blocking for ~52s while Euron embedding API processes chunks sequentially
+
+### What we built
+
+| File | Change |
+|------|--------|
+| `server/ingest.py` | `contextualize_chunks_async()` — parallel Groq calls via `asyncio.gather` + `Semaphore(max_concurrent)`. ~10× faster than sequential. Retry parses suggested wait time from 429 error message. |
+| `server/routes/upload.py` | Two-phase upload: sync non-contextual embed first (user queryable immediately), then `_contextual_refresh_bg()` BackgroundTask replaces non-contextual chunks with contextual versions. |
+| `config.yaml` | `contextual_retrieval.enabled: true`, `max_concurrent: 3` (3 × ~1000 tokens = 3000 TPM — safe under 6000 limit) |
+| `server/ingest.py` | `load_documents_from_paths()`: catches `FileNotDecryptedError` → raises `ValueError` with user-friendly message |
+| `server/routes/upload.py` | Catches `ValueError` from loader → returns HTTP 422 instead of 500 |
+| `eval-dashboard/src/components/EvolutionChart.jsx` | Custom `XAxisTick`: stacked version name + short date (e.g. `Violet (v1.3)` / `20 Jun 26`) |
+| `eval-dashboard/src/App.jsx` | `VERSION_NOTES` constant with bullet notes per version; release notes panel shown below run meta |
+| `frontend/src/components/Sidebar.jsx` | `Violet v1.3` badge (indigo pill) in sidebar footer |
+| `frontend/src/config.js` | New file — `MAINTENANCE_MODE` + `MAINTENANCE_MESSAGE` config flags |
+| `frontend/src/App.jsx` | Maintenance banner driven by `config.js`; hidden when `MAINTENANCE_MODE = false` |
+
+### Key discoveries
+- `asyncio.gather` with `Semaphore(3)` keeps burst under 3000 TPM — safe on Groq free tier (6000 TPM limit)
+- Groq 429 errors include `"Please try again in X.Xs"` — parse this for accurate retry sleep instead of hardcoded 2s
+- Render free tier: ephemeral filesystem. Every cold start wipes `./chroma_db`. Docs must be re-uploaded. Fix: Render persistent disk ($0.25/GB/month)
+- Euron embedding API sequential calls: 30 chunks × ~1.7s/call = ~52s blocking upload. Next optimization: move embed to background too (return 202 immediately, notify when ready)
+- `max_concurrent=20` was the OOM trigger in the previous session — 20 async coroutines each holding ~10MB response + retry state saturated 512MB
+
+---
+
 ## Current State Snapshot
 
 ```
 Retrieval:    Hybrid BM25 (0.3) + ChromaDB dense (0.7) → RRF → TinyBERT rerank top-10→5
 LLM:          Groq llama-3.3-70b-versatile
-Embeddings:   Euron API text-embedding-3-small
+Embeddings:   Euron API text-embedding-3-small (sequential, ~1.7s/chunk — bottleneck)
 Chunking:     RecursiveCharacterTextSplitter 500-char, overlap 50
 Memory:       ConversationBufferWindowMemory k=10
 Web search:   Tavily advanced, 800-char truncation, max 2 results — MANDATORY (always on)
 HyDE:         Implemented, toggled via config.yaml hyde_enabled (default: false)
 Multi-Query:  Implemented, toggled via config.yaml multi_query_enabled (default: false)
-Contextual:   contextualize_chunks() in server/ingest.py — LLM prepends 2-sentence context
-              to each chunk at ingest time using llama-3.1-8b-instant (500k TPD)
-              Eval-only via --contextual flag; production ingest untouched
+Contextual:   PRODUCTION — upload_files() embeds non-contextual first (<1s user response),
+              then _contextual_refresh_bg() replaces with async-parallel contextual chunks.
+              contextualize_chunks_async(): asyncio.gather + Semaphore(3), 10× faster than sequential.
+              config.yaml: contextual_retrieval.enabled=true, max_concurrent=3, model=llama-3.1-8b-instant
 Eval:         Separate eval-dashboard/ static site → https://askprism-eval.vercel.app/
+              X-axis shows version name + date. Release notes per version. Dropdown: Violet (v1.0) etc.
               Metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency
-              Script: scripts/run_eval_versioned.py --version v1.3.0 --tag "Violet" --n 50 --contextual
-              50 eval pairs;
               v1.0.0 "Violet" (baseline):      correctness=0.820, relevancy=0.620, recall=0.510, P@5=0.890, p50=2029ms
-              v1.1.0 "Violet" (hyde=true):     correctness=0.815, relevancy=0.650, recall=0.545, P@5=0.912, p50=5883ms — recall +3.5%, latency 3×, not worth it
-              v1.2.0 "Violet" (multi_query):   correctness=0.815, relevancy=0.597, recall=0.517, P@5=0.892, p50=2620ms — +0.7% recall, Phase 1 exhausted
-              v1.3.0 "Violet" (contextual):    correctness=0.815, relevancy=0.633, recall=0.601, P@5=0.956, p50=4161ms — recall +9.1pp (+18%), P@5 +6.6pp, latency 2×
-              Phase 2a conclusion: contextual retrieval biggest lift yet. Recall 0.51→0.60, target was 0.65.
-              Latency 2× because contextualized chunks are longer → more LLM tokens at query time.
-              Next: semantic chunking (Phase 2b) or ship contextual to production with background task.
+              v1.1.0 "Violet" (hyde=true):     correctness=0.815, relevancy=0.650, recall=0.545, P@5=0.912, p50=5883ms
+              v1.2.0 "Violet" (multi_query):   correctness=0.815, relevancy=0.597, recall=0.517, P@5=0.892, p50=2620ms
+              v1.3.0 "Violet" (contextual):    correctness=0.815, relevancy=0.633, recall=0.601, P@5=0.956, p50=4161ms
               Versioning: MAJOR.MINOR.PATCH — name changes on MAJOR only (v1.x.x=Violet, v2.x.x=Indigo)
-              No per-message faithfulness badge in user UI
+Frontend:     Violet v1.3 badge in sidebar footer. Maintenance banner config-driven (frontend/src/config.js).
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
-Infra:        Render (backend) + https://askprism.vercel.app/ (frontend) + https://askprism-eval.vercel.app/ (eval)
+Infra:        Render (backend, ephemeral FS — re-upload required after cold start) +
+              https://askprism.vercel.app/ (frontend) + https://askprism-eval.vercel.app/ (eval)
+Known limits: Euron embed ~52s for 30 chunks (sync, blocking). Next: move to background.
+              Render ephemeral FS: chroma_db lost on restart. Fix: Render persistent disk.
 Observability: LangSmith traces all LLM + retrieval calls (optional, env var)
 ```
 
@@ -476,10 +512,10 @@ Observability: LangSmith traces all LLM + retrieval calls (optional, env var)
 
 ### Phase 2 — Ingest pipeline (requires re-ingest of all docs)
 
-#### ~~Contextual Retrieval~~ ✅ Done (Stage 10, 2026-06-20)
-- `contextualize_chunks()` in `server/ingest.py`. Eval via `--contextual` flag (production ingest untouched).
-- v1.3.0 results: recall 0.510→0.601 (+18%), P@5 0.890→0.956. Latency 2× (longer chunks → more LLM tokens).
-- **Production path:** FastAPI BackgroundTask needed to avoid 40s+ upload wait for end users.
+#### ~~Contextual Retrieval~~ ✅ Done + Shipped to Production (Stage 10+11, 2026-06-20)
+- `contextualize_chunks_async()` + BackgroundTask in `routes/upload.py`. Two-phase: sync non-contextual embed (queryable <3s) → background contextual replacement.
+- v1.3.0 results: recall 0.510→0.601 (+18%), P@5 0.890→0.956. Latency 2× at query time (longer chunks → more LLM tokens).
+- `max_concurrent=3` in `config.yaml` — safe under Groq 6000 TPM limit.
 
 #### Semantic Chunking
 - **Problem:** Fixed 200-char splits cut mid-sentence, mid-table, mid-list. Embedding a truncated sentence returns a weak vector.

@@ -27,6 +27,12 @@
 | 2026-06-17 | eval_pairs.json expanded 20 → 50 pairs | 20 samples not statistically meaningful; added multi-hop, comparative, negative, numeric, edge-case question types | Active |
 | 2026-06-17 | Versioned eval JSON runs + index.json registry | Single flat JSON had no history; versioned runs let dashboard show metric evolution across architecture changes | Active |
 
+| 2026-06-20 | Contextual retrieval shipped to production via BackgroundTask | Eval proved +18% recall. Two-phase: sync non-contextual embed first (user queryable <3s), background replaces with contextual. Avoids blocking upload on ~52s Groq calls. | Active |
+| 2026-06-20 | `contextualize_chunks_async()` with Semaphore(3) | Parallel Groq calls 10× faster than sequential. `max_concurrent=3` keeps burst at ~3000 TPM — safe under Groq free tier 6000 TPM limit. `max_concurrent=20` caused OOM + 429 storm. | Active |
+| 2026-06-20 | Retry parses wait time from 429 error message | Groq 429 includes "Please try again in X.Xs". Parsing gives accurate sleep duration. Hardcoded 2s was too short for 10s rate limit windows. | Active |
+| 2026-06-20 | 422 for encrypted PDF upload instead of 500 | `pypdf.FileNotDecryptedError` propagated as unhandled 500. Now caught in `load_documents_from_paths()`, re-raised as `ValueError`, caught in upload route → HTTP 422 with clear message. | Active |
+| 2026-06-20 | Config-driven maintenance banner in `frontend/src/config.js` | Single file to toggle `MAINTENANCE_MODE` + `MAINTENANCE_MESSAGE`. Edit + push → Vercel redeploys in ~30s. No hardcoded HTML. | Active |
+
 ## Rejected alternatives
 
 | Alternative | Why rejected |

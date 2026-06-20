@@ -33,6 +33,14 @@ Every concept in this file maps to a specific stage in Prism's request lifecycle
 │  Concept 16  Multi-Workspace Isolation                          │
 │              Each workspace = one ChromaDB collection. Upload   │
 │              goes into selected workspace only.                 │
+│                                                                 │
+│  Concept 18  FastAPI BackgroundTasks                            │
+│              Two-phase upload: sync embed first (<3s queryable) │
+│              → background contextual replacement (~30–60s).     │
+│                                                                 │
+│  Concept 19  asyncio.Semaphore for rate limiting                │
+│              Cap parallel Groq calls at 3 → 3000 TPM burst vs  │
+│              6000 TPM limit. Smart 429 retry parses wait time.  │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -1575,3 +1583,133 @@ def _get_relevant_documents(self, query, ...):
 | Latency p50/p95/p99 | Percentile timing: median / worst-normal / absolute-worst | numpy.percentile over per-query ms measurements |
 | Multi-workspace isolation | One ChromaDB collection per workspace; key prop remounts React | workspaces.py + _vs_cache + _retriever_cache + key={workspaceId} |
 | Multi-Query Retrieval | Wider candidate pool → higher context_recall; dedup by best rank | retriever.py `_multi_query_expand()` (toggle: multi_query_enabled) |
+| FastAPI BackgroundTasks | Non-blocking background work after response sent | Two-phase contextual upload in routes/upload.py |
+| asyncio.Semaphore for rate limits | Cap parallel API calls to stay under TPM ceiling | `contextualize_chunks_async()` with Semaphore(3) |
+
+---
+
+## 18. FastAPI BackgroundTasks — Non-Blocking Post-Response Work
+
+### The Problem
+
+Contextual retrieval requires one Groq LLM call per chunk. 30 chunks × 1 call = 30 serial API calls = ~40s. If upload waits for all of them, user sees a frozen UI for 40s before getting any response.
+
+### The Pattern
+
+```
+Request → sync work (fast) → return response → background work (slow, after response sent)
+```
+
+FastAPI `BackgroundTasks` runs registered functions **after** the response is returned to the client. The client is unblocked immediately; the server continues the slow work in the background.
+
+```python
+from fastapi import BackgroundTasks
+
+@router.post("/upload")
+async def upload_files(background_tasks: BackgroundTasks, ...):
+    # Phase 1 — sync, fast (<3s)
+    chunks = chunk_documents(documents)
+    embed_and_store(chunks, workspace)      # Euron API, sequential
+    _rebuild_chain(app, workspace)          # user can query now
+
+    # Phase 2 — async, slow (~30–60s, after response)
+    background_tasks.add_task(
+        _contextual_refresh_bg,             # async function
+        app, documents, chunks, workspace, ...
+    )
+
+    return {"status": "ingested"}           # returned before bg starts
+```
+
+### What `_contextual_refresh_bg` does
+
+1. Deep-copies chunks (so original chunks not mutated)
+2. Calls `contextualize_chunks_async()` — parallel Groq calls with Semaphore
+3. Deletes old (non-contextual) chunk IDs from ChromaDB
+4. Embeds contextual chunks via Euron API
+5. Rebuilds chain
+
+### Trade-off
+
+| Approach | Upload latency | Chunk quality on first query |
+|----------|---------------|------------------------------|
+| Sync contextual | 40s+ | Contextual from start |
+| BackgroundTask | <3s | Non-contextual for ~30–60s, then contextual |
+| No contextual | <3s | Non-contextual always |
+
+First-query window with non-contextual chunks is acceptable at demo scale — recall difference is measurable on 50-pair eval, not user-perceptible on single queries.
+
+### When BackgroundTasks is wrong
+
+- Long background work that must complete before next request (chain rebuilds mid-query)
+- Work that must survive server restart (BackgroundTask lives in process — if Render cold-starts between upload and background completion, the task is lost)
+- Fix: use a task queue (Celery, ARQ) for durable background work
+
+---
+
+## 19. asyncio.Semaphore — Rate-Limiting Parallel API Calls
+
+### The Problem
+
+`asyncio.gather()` launches ALL coroutines at once. With 30 chunks and 30 parallel Groq calls, you get a 30k token burst against a 6000 TPM (tokens per minute) rate limit → instant 429 storm.
+
+Naive solution (sequential for loop) is safe but slow: 30 × 1.5s = 45s.
+
+### The Fix — Semaphore
+
+A `Semaphore(N)` is a counter initialized to N. `async with sem:` decrements it; releases on exit. When counter = 0, any new `async with sem:` blocks until another coroutine exits.
+
+Effect: at most N coroutines execute the guarded block simultaneously.
+
+```python
+sem = asyncio.Semaphore(3)          # max 3 concurrent Groq calls
+
+async def _contextualize_one(sem, llm, chunk, ...):
+    async with sem:                 # blocks if 3 already running
+        response = await llm.ainvoke(...)
+        chunk.page_content = f"{response.content} {chunk.page_content}"
+
+await asyncio.gather(*[
+    _contextualize_one(sem, llm, chunk, ...)
+    for chunk in chunks
+])
+```
+
+### TPM math for Prism
+
+- Each contextualization prompt: ~1000 tokens (doc snippet + chunk + instruction)
+- `max_concurrent=3` → max 3 × 1000 = 3000 tokens in flight at once
+- Groq free tier: `llama-3.1-8b-instant` → 6000 TPM limit
+- 3000 TPM burst = 50% of limit → safe headroom
+
+`max_concurrent=20` was the bug: 20 × 1000 = 20k token burst → 429 on every batch.
+
+### Smart 429 retry
+
+Groq 429 error messages include the suggested wait time:
+`"Rate limit exceeded. Please try again in 10.5s."`
+
+Parse this instead of using hardcoded sleep:
+
+```python
+except Exception as e:
+    wait = 12.0                                   # default fallback
+    if "try again in" in str(e):
+        m = re.search(r"try again in ([\d.]+)s", str(e))
+        if m:
+            wait = float(m.group(1)) + 1.0        # suggested + 1s buffer
+    await asyncio.sleep(wait)
+```
+
+Hardcoded 2s retry was too short — Groq's rate limit resets in 10–60s windows depending on model and tier.
+
+### Semaphore vs other approaches
+
+| Approach | Speed | Safety | Complexity |
+|----------|-------|--------|-----------|
+| Sequential loop | Slowest | ✅ Never rate limited | Simplest |
+| `asyncio.gather` (no sem) | Fastest | ❌ 429 storm | Simple |
+| `asyncio.gather` + Semaphore | Near-fastest | ✅ TPM controlled | Low |
+| Celery/ARQ task queue | Fast + durable | ✅ Best | High |
+
+For a demo on Render free tier: `asyncio.gather + Semaphore(3)` is the right call.
