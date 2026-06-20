@@ -1,5 +1,6 @@
 import hashlib
 import os
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader, CSVLoa
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
+from langchain_groq import ChatGroq
 
 from server.utils import load_config, setup_logger
 
@@ -104,6 +106,75 @@ def chunk_documents(documents: list, chunk_size: int = 500, chunk_overlap: int =
         chunk.metadata["chunk_index"] = i
 
     logger.info(f"Created {len(chunks)} chunks (size={chunk_size}, overlap={chunk_overlap})")
+    return chunks
+
+
+def contextualize_chunks(
+    chunks: list,
+    documents: list,
+    model: str = "llama-3.1-8b-instant",
+    sleep_between_calls: float = 0.1,
+) -> list:
+    """Prepend 2-sentence LLM context to each chunk before embedding.
+
+    Falls back to original chunk text on any Groq failure.
+    """
+    from langchain_core.messages import HumanMessage
+
+    doc_text_map: dict[str, str] = {}
+    for doc in documents:
+        source = doc.metadata.get("source", "unknown")
+        doc_text_map[source] = doc_text_map.get(source, "") + " " + doc.page_content
+
+    llm = ChatGroq(
+        model=model,
+        api_key=os.environ.get("GROQ_API_KEY", ""),
+        temperature=0.1,
+        max_tokens=150,
+    )
+
+    total = len(chunks)
+    for i, chunk in enumerate(chunks):
+        if not chunk.page_content.strip():
+            continue
+
+        source = chunk.metadata.get("source", "unknown")
+        full_doc_text = doc_text_map.get(source, "")[:3000]
+
+        prompt = (
+            "You are helping improve document retrieval. Given a document and a chunk "
+            "from it, write 2 concise sentences situating the chunk within the document.\n\n"
+            f"Document name: {source}\n"
+            f"Full document text: {full_doc_text}\n\n"
+            f"Chunk to situate:\n{chunk.page_content}\n\n"
+            "Write only the 2 situating sentences. No preamble."
+        )
+
+        for attempt in range(2):
+            try:
+                response = llm.invoke([HumanMessage(content=prompt)])
+                context_prefix = response.content.strip()
+                chunk.page_content = f"{context_prefix} {chunk.page_content}"
+                logger.info(
+                    "Contextualized chunk %d/%d: %s page %s",
+                    i + 1, total, source, chunk.metadata.get("page", "?"),
+                )
+                break
+            except Exception as e:
+                if attempt == 0:
+                    logger.warning(
+                        "Groq call failed for chunk %d/%d, retrying in 2s: %s",
+                        i + 1, total, e,
+                    )
+                    time.sleep(2)
+                else:
+                    logger.warning(
+                        "Groq call failed for chunk %d/%d (attempt 2), using original text: %s",
+                        i + 1, total, e,
+                    )
+
+        time.sleep(sleep_between_calls)
+
     return chunks
 
 

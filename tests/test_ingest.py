@@ -1,9 +1,11 @@
 import shutil
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 import pytest
 
-from server.ingest import load_documents, chunk_documents, embed_and_store
+from langchain_core.documents import Document
+from server.ingest import load_documents, chunk_documents, embed_and_store, contextualize_chunks
 
 
 DATA_DIR = "data/raw"
@@ -66,3 +68,66 @@ def test_embed_and_store_is_idempotent(tmp_path):
     count_after_second = vs2._collection.count()
 
     assert count_after_first == count_after_second == 5
+
+
+def test_contextualize_chunks_prepends_context():
+    """Context prefix must be prepended to chunk.page_content."""
+    chunks = [Document(
+        page_content="The limit was revised to ₹2 lakh.",
+        metadata={"source": "rbi.pdf", "page": 1}
+    )]
+    documents = [Document(
+        page_content="Full RBI document text about UPI limits.",
+        metadata={"source": "rbi.pdf"}
+    )]
+
+    mock_response = MagicMock()
+    mock_response.content = "RBI Circular 2024 on UPI limits. This section covers payment caps."
+
+    with patch("server.ingest.ChatGroq") as MockGroq:
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = mock_response
+        MockGroq.return_value = mock_llm
+
+        result = contextualize_chunks(chunks, documents, sleep_between_calls=0)
+
+    assert result[0].page_content.startswith("RBI Circular 2024")
+    assert "The limit was revised to ₹2 lakh." in result[0].page_content
+
+
+def test_contextualize_chunks_fallback_on_llm_failure():
+    """On Groq failure, original chunk text must be preserved unchanged."""
+    original_text = "Original chunk text."
+    chunks = [Document(page_content=original_text, metadata={"source": "doc.pdf", "page": 1})]
+    documents = [Document(page_content="Full document.", metadata={"source": "doc.pdf"})]
+
+    with patch("server.ingest.ChatGroq") as MockGroq:
+        mock_llm = MagicMock()
+        mock_llm.invoke.side_effect = Exception("Groq timeout")
+        MockGroq.return_value = mock_llm
+
+        result = contextualize_chunks(chunks, documents, sleep_between_calls=0)
+
+    assert result[0].page_content == original_text
+
+
+def test_contextualize_chunks_skips_empty_content():
+    """Empty chunks must not trigger a Groq call."""
+    chunks = [
+        Document(page_content="", metadata={"source": "doc.pdf"}),
+        Document(page_content="Real content.", metadata={"source": "doc.pdf"}),
+    ]
+    documents = [Document(page_content="Full doc.", metadata={"source": "doc.pdf"})]
+
+    mock_response = MagicMock()
+    mock_response.content = "Context sentence 1. Context sentence 2."
+
+    with patch("server.ingest.ChatGroq") as MockGroq:
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = mock_response
+        MockGroq.return_value = mock_llm
+
+        result = contextualize_chunks(chunks, documents, sleep_between_calls=0)
+
+    assert result[0].page_content == ""
+    assert mock_llm.invoke.call_count == 1  # only called for non-empty chunk

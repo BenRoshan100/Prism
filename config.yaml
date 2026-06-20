@@ -24,3 +24,7 @@ llm:
 eval:
   ground_truth_path: "data/ground_truth/eval_pairs.json"
   precision_k: 5
+
+contextual_retrieval:
+  enabled: false
+  model: "llama-3.1-8b-instant"
