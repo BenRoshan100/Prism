@@ -3,6 +3,44 @@ import MetricCard from './components/MetricCard'
 import EvolutionChart from './components/EvolutionChart'
 import LatencyStats from './components/LatencyStats'
 
+const MAJOR_NAMES = { 1: 'Violet', 2: 'Indigo', 3: 'Azure', 4: 'Amber', 5: 'Scarlet' }
+
+function formatVersion(version) {
+  const match = version.match(/^v(\d+)\.(\d+)/)
+  if (!match) return version
+  const [, major, minor] = match
+  const name = MAJOR_NAMES[Number(major)] ?? `v${major}`
+  return `${name} (v${major}.${minor})`
+}
+
+const VERSION_NOTES = {
+  'v1.0.0': [
+    'Baseline: hybrid BM25 (0.3) + ChromaDB dense (0.7) → RRF → TinyBERT rerank top-10→5',
+    '50 eval pairs across multi-hop, comparative, negative, numeric, and edge-case question types',
+    'answer_correctness (LLM judge vs ground truth) adopted as primary metric — replaces circular faithfulness',
+    'Separate eval-dashboard deployed; per-message faithfulness badge removed from UI',
+  ],
+  'v1.1.0': [
+    'HyDE enabled: LLM generates a hypothetical answer, embeds it instead of the raw query',
+    'Closes question→answer vector space gap — dense retrieval finds answer-shaped chunks',
+    'BM25 + reranker still use original query',
+    'Result: recall +3.5% but latency 3× (one extra Groq call per query) — not worth the trade',
+  ],
+  'v1.2.0': [
+    'Multi-Query Retrieval: LLM generates 3 phrasings of each query at retrieval time',
+    'Retrieves for each phrasing, deduplicates by best rank, RRF fuses wider candidate pool',
+    'Reranker still scores against the original query',
+    'Result: +0.7% recall, relevancy dropped — Phase 1 (query-side) exhausted; root cause is chunk quality',
+  ],
+  'v1.3.0': [
+    'Contextual Retrieval: at ingest time, llama-3.1-8b-instant prepends 2-sentence context to each chunk',
+    'Context situates the chunk within its source document before embedding — richer vector representation',
+    'Result: recall +9.1pp (+18%), P@5 +6.6pp — biggest lift across all experiments',
+    'Latency 2× — contextualized chunks are longer, so LLM processes more tokens per answer',
+    'Production ingest untouched; eval-only via --contextual flag',
+  ],
+}
+
 const METRIC_DEFS = [
   {
     key: 'answer_correctness',
@@ -105,7 +143,7 @@ export default function App() {
               >
                 {indexData.map(e => (
                   <option key={e.version} value={e.version}>
-                    {e.version} — {e.tag}
+                    {formatVersion(e.version)}
                   </option>
                 ))}
               </select>
@@ -131,10 +169,8 @@ export default function App() {
             {/* Run meta */}
             <div className="flex items-center gap-4 text-xs text-gray-400">
               <span className="bg-indigo-50 text-indigo-700 font-medium px-2.5 py-1 rounded-full">
-                {currentRun.version}
+                {formatVersion(currentRun.version)}
               </span>
-              <span>{currentRun.tag}</span>
-              <span>·</span>
               <span>{currentRun.sample_count} samples</span>
               <span>·</span>
               <span>{new Date(currentRun.computed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -147,6 +183,23 @@ export default function App() {
                 </>
               )}
             </div>
+
+            {/* Release notes */}
+            {VERSION_NOTES[currentRun.version] && (
+              <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                  Release Notes — {formatVersion(currentRun.version)}
+                </p>
+                <ul className="space-y-1.5">
+                  {VERSION_NOTES[currentRun.version].map((note, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Metric cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
