@@ -1,7 +1,7 @@
 # Prism — Project Evolution
 
 > End-to-end record of what was broken at each stage, what was built to fix it, and what is planned next.
-> Updated as the project evolves. Last updated: 2026-06-19.
+> Updated as the project evolves. Last updated: 2026-06-20.
 
 ---
 
@@ -17,9 +17,10 @@
 8. [Stage 7 — Singleton Cache + URL Guard](#stage-7--singleton-cache--url-guard-2026-06-14)
 9. [Stage 8 — Eval Dashboard + Rigorous Metrics](#stage-8--eval-dashboard--rigorous-metrics-2026-06-17)
 10. [Stage 9 — Multi-Query Retrieval](#stage-9--multi-query-retrieval-2026-06-19)
-11. [Current State Snapshot](#current-state-snapshot)
-12. [Roadmap — Retrieval & Answer Quality](#roadmap--retrieval--answer-quality)
-11. [Roadmap — New Features](#roadmap--new-features)
+11. [Stage 10 — Contextual Retrieval (Eval)](#stage-10--contextual-retrieval-eval-2026-06-20)
+12. [Current State Snapshot](#current-state-snapshot)
+13. [Roadmap — Retrieval & Answer Quality](#roadmap--retrieval--answer-quality)
+14. [Roadmap — New Features](#roadmap--new-features)
 
 ---
 
@@ -391,26 +392,66 @@ Every query now hits Tavily + RAG corpus. `run_query_with_web` always called wit
 
 ---
 
+## Stage 10 — Contextual Retrieval (Eval) (2026-06-20)
+
+### What was wrong
+Phase 1 (HyDE + Multi-Query) left context_recall at ~0.51. Root cause confirmed: fixed-size 500-char splits produce decontextualized chunks. `"The limit was revised to ₹2 lakh."` has no document name, no section, no subject — weak embedding that misses ~half relevant content. Query-side techniques cannot fix bad chunk quality.
+
+### What we built
+
+| File | Change |
+|------|--------|
+| `server/ingest.py` | `contextualize_chunks(chunks, documents, model, sleep_between_calls)` — calls Groq 8B per chunk, prepends 2-sentence situating context to `page_content` before embedding. Fallback to original text on any failure. |
+| `config.yaml` | `contextual_retrieval.enabled: false`, `contextual_retrieval.model: llama-3.1-8b-instant` |
+| `scripts/run_eval_versioned.py` | `--contextual` flag + `--data-dir` arg. When set: clears `eval_ctx` collection, re-ingests with `contextualize_chunks`, evaluates against `eval_ctx`. Production upload untouched. |
+| `tests/test_ingest.py` | 3 tests: context prepended, fallback on failure, empty chunks skipped |
+
+### Results — v1.3.0 "Violet"
+
+| Metric | v1.0.0 baseline | v1.3.0 contextual | Delta |
+|--------|-----------------|-------------------|-------|
+| context_recall | 0.510 | 0.601 | **+9.1pp (+18%)** |
+| precision_at_5 | 0.890 | 0.956 | **+6.6pp** |
+| answer_relevancy | 0.620 | 0.633 | +1.3pp |
+| answer_correctness | 0.820 | 0.815 | -0.5pp (noise) |
+| latency p50 | 2029ms | 4161ms | **+2× ⚠️** |
+| latency p95 | — | 6122ms | — |
+
+### Key discoveries
+- Biggest single lift across all Phase 1+2 experiments: recall +9.1pp absolute
+- Precision also improved significantly (0.890→0.956) — wider context gives reranker stronger signal
+- Latency 2× because contextualized chunks are longer (~150 extra tokens per chunk) → LLM processes more tokens per answer generation call. Zero retrieval-time overhead (as designed), but query-time cost is real.
+- Recall target was 0.65 — hit 0.60. Gap remains; next candidate is semantic chunking (Phase 2b)
+- Production path: if shipping contextual retrieval, need FastAPI BackgroundTask for async contextualization at upload time (otherwise user waits 40s+ per doc upload)
+
+---
+
 ## Current State Snapshot
 
 ```
 Retrieval:    Hybrid BM25 (0.3) + ChromaDB dense (0.7) → RRF → TinyBERT rerank top-10→5
 LLM:          Groq llama-3.3-70b-versatile
 Embeddings:   Euron API text-embedding-3-small
-Chunking:     ParentDocumentRetriever (child 200-char indexed, parent 800-char to LLM)
+Chunking:     RecursiveCharacterTextSplitter 500-char, overlap 50
 Memory:       ConversationBufferWindowMemory k=10
 Web search:   Tavily advanced, 800-char truncation, max 2 results — MANDATORY (always on)
 HyDE:         Implemented, toggled via config.yaml hyde_enabled (default: false)
 Multi-Query:  Implemented, toggled via config.yaml multi_query_enabled (default: false)
-              Generates 3 phrasings → retrieve each → deduplicate by best rank → RRF → rerank
+Contextual:   contextualize_chunks() in server/ingest.py — LLM prepends 2-sentence context
+              to each chunk at ingest time using llama-3.1-8b-instant (500k TPD)
+              Eval-only via --contextual flag; production ingest untouched
 Eval:         Separate eval-dashboard/ static site → https://askprism-eval.vercel.app/
               Metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency
-              Script: scripts/run_eval_versioned.py --version v1.1.0 --tag "Indigo" --n 50
-              50 eval pairs; v1.0.0 "Violet": correctness=0.82, relevancy=0.62, recall=0.51, P@5=0.89, p50=2029ms
-              v1.1.0 "Violet" (hyde=true):  correctness=0.815, relevancy=0.650, recall=0.545, P@5=0.912, p50=5883ms — recall +3.5% but latency 3×, not worth it
-              v1.2.0 "Violet" (multi_query=true): correctness=0.815, relevancy=0.597, recall=0.517, P@5=0.892, p50=2620ms — +0.7% recall, relevancy dropped, Phase 1 exhausted
-              Phase 1 conclusion: recall=0.51 is a chunking/ingestion problem, not query formulation. Moving to Phase 2 (Contextual Retrieval).
-              Versioning: MAJOR.MINOR.PATCH — name changes on MAJOR only (v1.x.x=Violet, v2.x.x=Indigo, v3.x.x=Azure)
+              Script: scripts/run_eval_versioned.py --version v1.3.0 --tag "Violet" --n 50 --contextual
+              50 eval pairs;
+              v1.0.0 "Violet" (baseline):      correctness=0.820, relevancy=0.620, recall=0.510, P@5=0.890, p50=2029ms
+              v1.1.0 "Violet" (hyde=true):     correctness=0.815, relevancy=0.650, recall=0.545, P@5=0.912, p50=5883ms — recall +3.5%, latency 3×, not worth it
+              v1.2.0 "Violet" (multi_query):   correctness=0.815, relevancy=0.597, recall=0.517, P@5=0.892, p50=2620ms — +0.7% recall, Phase 1 exhausted
+              v1.3.0 "Violet" (contextual):    correctness=0.815, relevancy=0.633, recall=0.601, P@5=0.956, p50=4161ms — recall +9.1pp (+18%), P@5 +6.6pp, latency 2×
+              Phase 2a conclusion: contextual retrieval biggest lift yet. Recall 0.51→0.60, target was 0.65.
+              Latency 2× because contextualized chunks are longer → more LLM tokens at query time.
+              Next: semantic chunking (Phase 2b) or ship contextual to production with background task.
+              Versioning: MAJOR.MINOR.PATCH — name changes on MAJOR only (v1.x.x=Violet, v2.x.x=Indigo)
               No per-message faithfulness badge in user UI
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
 Infra:        Render (backend) + https://askprism.vercel.app/ (frontend) + https://askprism-eval.vercel.app/ (eval)
@@ -435,12 +476,10 @@ Observability: LangSmith traces all LLM + retrieval calls (optional, env var)
 
 ### Phase 2 — Ingest pipeline (requires re-ingest of all docs)
 
-#### Contextual Retrieval
-- **Problem:** Chunks lose context when split. `"The limit was revised to ₹2 lakh"` has no idea which circular, which date, which payment type.
-- **How:** At ingest time, for each chunk, call LLM: *"Here is the document [full doc]. Here is a chunk [chunk]. Write 2–3 sentences situating this chunk."* Prepend that context to the chunk before embedding.
-- **Result:** `"RBI Master Circular 2024 on UPI limits. The limit was revised to ₹2 lakh..."` → richer vector.
-- **Effort:** Medium. Modifies `ingest.py` child chunk creation. One Groq 8B call per chunk at ingest time (not query time — zero query latency hit).
-- **Expected lift:** Anthropic's benchmark: ~49% reduction in retrieval failures. RAGAS context_precision measurably improves.
+#### ~~Contextual Retrieval~~ ✅ Done (Stage 10, 2026-06-20)
+- `contextualize_chunks()` in `server/ingest.py`. Eval via `--contextual` flag (production ingest untouched).
+- v1.3.0 results: recall 0.510→0.601 (+18%), P@5 0.890→0.956. Latency 2× (longer chunks → more LLM tokens).
+- **Production path:** FastAPI BackgroundTask needed to avoid 40s+ upload wait for end users.
 
 #### Semantic Chunking
 - **Problem:** Fixed 200-char splits cut mid-sentence, mid-table, mid-list. Embedding a truncated sentence returns a weak vector.
