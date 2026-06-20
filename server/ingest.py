@@ -53,13 +53,24 @@ def load_documents(data_dir: str) -> list:
 
 
 def load_documents_from_paths(file_paths: list[str]) -> list:
-    """Load documents from explicit file paths (not directory scan)."""
+    """Load documents from explicit file paths (not directory scan).
+
+    Raises ValueError for password-protected PDFs so callers can return a clean 422.
+    """
     documents = []
     for fp in file_paths:
         file_path = Path(fp)
         if file_path.suffix.lower() == ".pdf":
-            loader = PyPDFLoader(str(file_path))
-            docs = loader.load()
+            try:
+                loader = PyPDFLoader(str(file_path))
+                docs = loader.load()
+            except Exception as e:
+                if "not been decrypted" in str(e).lower() or "FileNotDecryptedError" in type(e).__name__:
+                    raise ValueError(
+                        f"'{file_path.name}' is password-protected. "
+                        "Remove the password and re-upload."
+                    ) from e
+                raise
             for doc in docs:
                 doc.metadata["source"] = file_path.name
             documents.extend(docs)

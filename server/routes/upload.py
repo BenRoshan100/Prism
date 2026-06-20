@@ -91,7 +91,10 @@ async def upload_files(
         logger.info(f"Saved uploaded file: {f.filename} (workspace={workspace})")
 
     # Load + chunk (fast)
-    documents = load_documents_from_paths(saved_paths)
+    try:
+        documents = load_documents_from_paths(saved_paths)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
     chunks = chunk_documents(documents)
 
     # Embed non-contextual immediately so user can query right away
