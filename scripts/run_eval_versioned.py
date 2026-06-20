@@ -168,6 +168,26 @@ def _compute_percentile(values: list[float], p: int) -> int:
     return int(np.percentile(values, p))
 
 
+def _ingest_contextual(data_dir: str, ctx_model: str) -> None:
+    """Clear eval_ctx ChromaDB collection and re-ingest with LLM context prefixes."""
+    import chromadb
+    from server.ingest import load_documents, chunk_documents, contextualize_chunks, embed_and_store
+
+    client = chromadb.PersistentClient(path="./chroma_db")
+    try:
+        client.delete_collection("eval_ctx")
+        print("  Cleared existing eval_ctx collection.")
+    except Exception:
+        pass
+
+    documents = load_documents(data_dir)
+    chunks = chunk_documents(documents)
+    print(f"  Contextualizing {len(chunks)} chunks with {ctx_model}...")
+    chunks = contextualize_chunks(chunks, documents, model=ctx_model, sleep_between_calls=0.1)
+    embed_and_store(chunks, collection_name="eval_ctx")
+    print(f"  Done. eval_ctx collection ready ({len(chunks)} chunks).")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", required=True, help="Version tag e.g. v2.1")
@@ -176,6 +196,10 @@ def main():
     parser.add_argument("--workspace", default="default", help="ChromaDB workspace collection name")
     parser.add_argument("--judge-model", default="llama-3.1-8b-instant",
                         help="Groq judge model for correctness + RAGAS (default: llama-3.1-8b-instant)")
+    parser.add_argument("--contextual", action="store_true",
+                        help="Ingest corpus with LLM context prefixes into eval_ctx before eval")
+    parser.add_argument("--data-dir", default="data/raw",
+                        help="Source documents dir for --contextual ingest (default: data/raw)")
     args = parser.parse_args()
 
     print(f"=== Prism Eval — {args.version} | {args.tag} ===\n")
@@ -199,7 +223,15 @@ def main():
     from server.eval.precision import compute_precision_at_k
 
     config = load_config()
-    retriever = _build_retriever(config, workspace_id=args.workspace)
+    workspace_id = "eval_ctx" if args.contextual else args.workspace
+
+    if args.contextual:
+        ctx_cfg = config.get("contextual_retrieval", {})
+        ctx_model = ctx_cfg.get("model", args.judge_model)
+        print(f"Contextual retrieval: ingesting {args.data_dir} → eval_ctx ({ctx_model})...")
+        _ingest_contextual(args.data_dir, ctx_model=ctx_model)
+
+    retriever = _build_retriever(config, workspace_id=workspace_id)
     answer_llm = _make_llm(config["llm"]["model"], temperature=0.1, max_tokens=500)
     judge_llm = _make_llm(args.judge_model, temperature=0.0, max_tokens=200)
 
@@ -315,11 +347,13 @@ def main():
         "sample_count": len(per_query),
         "config": {
             "hyde_enabled": retrieval_cfg.get("hyde_enabled", False),
+            "multi_query_enabled": retrieval_cfg.get("multi_query_enabled", False),
+            "contextual_retrieval": args.contextual,
             "retrieve_k": retrieval_cfg.get("retrieve_k", 10),
             "rerank_k": retrieval_cfg.get("rerank_k", 5),
             "llm": config.get("llm", {}).get("model", "unknown"),
             "judge_model": args.judge_model,
-            "workspace": args.workspace,
+            "workspace": workspace_id,
         },
         "metrics": metrics,
         "per_query": per_query,
