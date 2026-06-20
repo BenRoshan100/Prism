@@ -28,4 +28,4 @@ eval:
 contextual_retrieval:
   enabled: true
   model: "llama-3.1-8b-instant"
-  max_concurrent: 20
+  max_concurrent: 3

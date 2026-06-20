@@ -220,8 +220,16 @@ async def _contextualize_one(
                 break
             except Exception as e:
                 if attempt == 0:
-                    logger.warning("Chunk %d/%d retry in 2s: %s", idx + 1, total, e)
-                    await asyncio.sleep(2)
+                    # Parse suggested wait time from 429 message, else default 12s
+                    wait = 12.0
+                    msg = str(e)
+                    if "try again in" in msg:
+                        import re as _re
+                        m = _re.search(r"try again in ([\d.]+)s", msg)
+                        if m:
+                            wait = float(m.group(1)) + 1.0
+                    logger.warning("Chunk %d/%d retry in %.0fs: %s", idx + 1, total, wait, e)
+                    await asyncio.sleep(wait)
                 else:
                     logger.warning("Chunk %d/%d fallback to original: %s", idx + 1, total, e)
 
