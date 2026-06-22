@@ -1,6 +1,16 @@
+---
+title: Prism
+emoji: 💎
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Prism — Document Intelligence with Self-Scoring Retrieval
 
-**Live demo:** https://fin-rag-git-main-benroshan100s-projects.vercel.app/
+**Live demo:** https://askprism.vercel.app
 
 Load any documents or URLs → Prism becomes an instant expert on that corpus. Ask multi-turn questions, get cited answers, and see retrieval quality scored on every response. Most RAG apps fail silently when retrieval breaks. Prism surfaces that signal.
 
@@ -39,7 +49,7 @@ If retrieval degrades, you see it before the user does.
 └────────────────────────┬─────────────────────────────────┘
                          │ HTTP
 ┌────────────────────────▼─────────────────────────────────┐
-│  FastAPI Backend (Render — Docker, 512MB)                │
+│  FastAPI Backend (HF Spaces — Docker, 16GB)              │
 │                                                          │
 │  Upload / URL ingest                                     │
 │  → ParentDocumentRetriever (child 200-char / parent 800) │
@@ -70,7 +80,7 @@ If retrieval degrades, you see it before the user does.
 | **Sparse retrieval** | rank_bm25 (BM25Okapi) |
 | **Hybrid fusion** | Weighted RRF (dense 0.7 + sparse 0.3) |
 | **Reranker** | cross-encoder/ms-marco-TinyBERT-L-2-v2 (~17MB) |
-| **Embeddings** | Euron API `text-embedding-3-small` — API-based to fit Render 512MB |
+| **Embeddings** | Euron API `text-embedding-3-small` — API-based (avoids local model RAM cost) |
 | **LLM** | Groq `llama-3.3-70b-versatile` via `langchain-groq` |
 | **Orchestration** | LangChain `ConversationalRetrievalChain` |
 | **Memory** | `ConversationBufferWindowMemory` (k=10 turns) |
@@ -158,20 +168,18 @@ python scripts/run_ragas_local.py --n 10
 
 | Service | Platform | Notes |
 |---|---|---|
-| Backend | Render (Docker) | 512MB RAM free tier. CPU-only torch + TinyBERT reranker keeps it within limit. |
+| Backend | HF Spaces (Docker) | 16GB RAM free tier. Runs as UID 1000. Port 7860. |
 | Frontend | Vercel | Free tier, auto-deploys from `main` branch. |
 
-### Backend on Render
-1. Push to GitHub
-2. Render → New Web Service → connect repo (runtime: Docker)
-3. Set env vars: `GROQ_API_KEY`, `EURON_API_KEY`, `TAVILY_API_KEY`, `LANGCHAIN_API_KEY`
-4. Deploy
+### Backend on HF Spaces
+1. huggingface.co → New Space → Docker → link this GitHub repo
+2. Space Settings → Repository Secrets → add `GROQ_API_KEY`, `EURON_API_KEY`, `TAVILY_API_KEY`
+3. Space auto-builds from `main` on push
 
 ### Frontend on Vercel
-1. Vercel → Import repo
-2. Root Directory: `frontend`
-3. Set env var: `VITE_API_URL=https://<your-backend>.onrender.com/api`
-4. Deploy
+1. Vercel → Import repo → Root Directory: `frontend`
+2. Set env var: `VITE_API_URL=https://<your-hf-username>-prism.hf.space/api`
+3. Deploy
 
 ---
 
