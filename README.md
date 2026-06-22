@@ -88,7 +88,7 @@ If retrieval degrades, you see it before the user does.
 | **Eval** | RAGAS (pre-computed JSON) + LLM-as-Judge per turn |
 | **Observability** | LangSmith |
 | **Frontend** | React 19 + Vite + Tailwind CSS v4 |
-| **Deployment** | Render (Docker backend) + Vercel (frontend) |
+| **Deployment** | HF Spaces Docker (backend, 16GB RAM) + Vercel (frontend) |
 
 ---
 
@@ -232,10 +232,11 @@ prism/
 
 ## Design Decisions Worth Noting
 
-- **Singleton retriever cache per workspace** — without cache, every request rebuilt the Chroma instance (full embedding reload) → OOM after 2–3 queries. Cache invalidated after ingest.
-- **CPU-only torch in Dockerfile** — sentence-transformers pulls CUDA torch (~2GB) by default, OOMing Render 512MB before uvicorn binds port. Pre-installing CPU torch (~200MB) is mandatory.
-- **RAGAS pre-computed locally** — `nest_asyncio` cannot patch `uvloop` (uvicorn's event loop on Linux). Live RAGAS eval on Render always 500s. Run locally, commit JSON, Vercel reads file.
-- **TinyBERT-L-2-v2 reranker** — MiniLM-L-6-v2 (~85MB) + base memory exceeded 512MB on web queries. TinyBERT (~17MB) saves 68MB permanently.
+- **Singleton retriever cache per workspace** — without cache, every request rebuilt the Chroma instance (full embedding reload). Cache invalidated after ingest.
+- **CPU-only torch in Dockerfile** — sentence-transformers pulls CUDA torch (~2GB) by default. Pre-installing CPU torch keeps the image lean.
+- **HF Spaces UID 1000** — HF runs Docker containers as user 1000. Reranker weights baked under `HF_HOME=/app/.cache/huggingface` as user 1000 at build time; `HF_HUB_OFFLINE=1` set after download to block runtime Hub calls.
+- **RAGAS pre-computed locally** — `nest_asyncio` cannot patch `uvloop` (uvicorn's event loop on Linux). Live RAGAS eval always 500s. Run locally, commit JSON, Vercel reads file.
+- **TinyBERT-L-2-v2 reranker** — same ranking quality as MiniLM-L-6-v2 at demo corpus scale; ~17MB vs ~85MB.
 - **Web search bypasses chain** — `ConversationalRetrievalChain` condensation step strips prepended Tavily context before LLM sees it. Web path uses direct LLM call with chat history.
 - **Idempotent ingestion** — chunk IDs are `md5(source + page + text)`. Re-ingesting same doc does not duplicate chunks.
 

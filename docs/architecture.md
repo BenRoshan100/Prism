@@ -13,8 +13,8 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 | Vector store | ChromaDB (persistent) | Dense embedding storage and retrieval |
 | Sparse retrieval | rank_bm25 (BM25Okapi) | Keyword-match retrieval for regulatory text |
 | Hybrid fusion | Weighted RRF (dense 0.7 + sparse 0.3) | Merge dense + sparse result lists |
-| Reranker | cross-encoder/ms-marco-TinyBERT-L-2-v2 | Re-score top-10 → return top-5 (~17MB vs 85MB; OOM prevention on 512MB Render) |
-| Embeddings | Euron API (text-embedding-3-small) | API-based; avoids OOM on Render free tier. Groq has no embeddings endpoint. |
+| Reranker | cross-encoder/ms-marco-TinyBERT-L-2-v2 | Re-score top-10 → return top-5 (~17MB; chosen over MiniLM-L-6-v2 ~85MB for lower memory footprint) |
+| Embeddings | Euron API (text-embedding-3-small) | API-based; Groq has no embeddings endpoint. |
 | LLM | Groq (llama-3.3-70b-versatile) via langchain-groq | Fast open-weight inference; OpenAI-compatible |
 | Chunking | LangChain ParentDocumentRetriever | Child 200-char indexed, parent 800-char sent to LLM |
 | Memory | ConversationBufferWindowMemory (k=10) | Last 10 conversation turns |
@@ -28,7 +28,7 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 | Document parsing | LlamaParse (primary), pypdf (fallback) | PDF extraction |
 | Backend | FastAPI + Uvicorn | REST API |
 | Frontend | React 19 + Vite + Tailwind CSS v4 | Chat / Upload tabs |
-| Deployment | Render (Docker backend) + Vercel (frontend) + Vercel (eval-dashboard) | Production |
+| Deployment | HF Spaces (Docker backend, 16GB RAM) + Vercel (frontend) + Vercel (eval-dashboard) | Production |
 
 ## Data flow
 
@@ -49,24 +49,26 @@ Query → hybrid retrieval (ChromaDB dense + BM25 sparse) → weighted RRF fusio
 7. Response includes: answer, sources (with scores), retrieval_method
 
 ## Key design decisions
-- **API embeddings over local**: sentence-transformers ~400MB OOMs on Render 512MB free tier; Euron API ~0MB. Groq used for LLM; Euron retained for embeddings (Groq exposes no embeddings endpoint).
+- **API embeddings over local**: Euron API embeddings ~0MB RAM; Groq has no embeddings endpoint so Euron is retained for embeddings.
 - **ParentDocumentRetriever**: small chunks improve retrieval precision; large parent chunks improve answer faithfulness
 - **Cross-encoder reranker**: bi-encoder (ChromaDB) is fast but approximate; cross-encoder is slower but more accurate on top-20 pool
 - **BM25 weight 0.3**: regulatory text has exact keyword matches (section numbers); sparse retrieval catches what dense misses
-- **RAGAS benchmark pre-computed locally**: `nest_asyncio` cannot patch `uvloop` (used by uvicorn on Render Linux), making live RAGAS eval impossible on prod. Run `scripts/run_ragas_local.py` locally, commit JSON results, Vercel builds dashboard from file.
-- **TinyBERT-L-2-v2 reranker**: MiniLM-L-6-v2 (~85MB) + base memory (~250MB) + Tavily content + LLM call exceeded Render 512MB on web queries. TinyBERT-L-2-v2 is ~17MB — same ranking quality at demo corpus scale.
-- **Singleton vectorstore/retriever cache**: each workspace caches its Chroma vectorstore + HybridRetriever in a module-level dict. Without cache, every chat request created a new Chroma instance (full embedding reload), causing OOM on repeated queries. Cache is invalidated after ingest.
+- **RAGAS benchmark pre-computed locally**: `nest_asyncio` cannot patch `uvloop` (used by uvicorn on Linux), making live RAGAS eval impossible on prod. Run `scripts/run_ragas_local.py` locally, commit JSON results, Vercel builds dashboard from file.
+- **TinyBERT-L-2-v2 reranker**: MiniLM-L-6-v2 (~85MB) vs TinyBERT-L-2-v2 (~17MB) — same ranking quality at demo corpus scale with lower memory footprint.
+- **Singleton vectorstore/retriever cache**: each workspace caches its Chroma vectorstore + HybridRetriever in a module-level dict. Without cache, every chat request created a new Chroma instance (full embedding reload). Cache is invalidated after ingest.
 - **Multi-workspace isolation**: each workspace maps to one ChromaDB collection. Frontend workspace switcher passes `workspace_id` on every request; backend resolves the correct collection before retrieval.
-- **URL size guard**: `url_loader.py` enforces a max content size before embedding URL content, preventing OOM from large external pages.
+- **URL size guard**: `url_loader.py` enforces a max content size before embedding URL content, preventing memory spikes from large external pages.
 - **Eval dashboard separate site**: eval runs offline, results versioned as JSON. Separates eval tooling from user-facing app; no live eval endpoint on prod backend. Per-message faithfulness badge removed from UI — moved to dedicated dashboard.
 - **answer_correctness over faithfulness**: faithfulness (LLM judge vs retrieved chunks) is circular — inflates when eval pairs are corpus-aligned. answer_correctness (LLM judge vs ground_truth reference) is an independent signal.
+- **HF Spaces Docker (UID 1000)**: model weights baked into image under `HF_HOME=/app/.cache/huggingface` as user 1000 at build time; `HF_HUB_OFFLINE=1` set after download to block runtime network calls.
 
 ## Known limitations
 - InMemoryStore for parent chunks: does not survive server restart (re-ingest required)
 - BM25 index rebuilt in memory on each startup (not persisted to disk)
-- Render free tier: 512MB RAM, cold starts after inactivity
+- HF Spaces free tier: ephemeral filesystem — chroma_db lost on cold start (re-upload required)
+- Euron embedding API sequential: ~5s/chunk — 30 chunks = ~150s blocking upload
 
 ## Future improvements
 - Persist BM25 index to disk (pickle)
-- Multi-collection ChromaDB (one per document set)
+- Move Euron embedding to background task (return 202, poll for ready)
 - Streaming responses from LLM

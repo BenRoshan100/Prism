@@ -1,7 +1,7 @@
 # Prism — Project Evolution
 
 > End-to-end record of what was broken at each stage, what was built to fix it, and what is planned next.
-> Updated as the project evolves. Last updated: 2026-06-20 (Stage 11).
+> Updated as the project evolves. Last updated: 2026-06-22 (Stage 12).
 
 ---
 
@@ -18,6 +18,7 @@
 9. [Stage 8 — Eval Dashboard + Rigorous Metrics](#stage-8--eval-dashboard--rigorous-metrics-2026-06-17)
 10. [Stage 9 — Multi-Query Retrieval](#stage-9--multi-query-retrieval-2026-06-19)
 11. [Stage 10 — Contextual Retrieval (Eval)](#stage-10--contextual-retrieval-eval-2026-06-20)
+12. [Stage 12 — HF Spaces Migration](#stage-12--hf-spaces-migration-2026-06-22)
 12. [Stage 11 — Contextual Retrieval in Production + Dashboard Polish](#stage-11--contextual-retrieval-in-production--dashboard-polish-2026-06-20)
 13. [Current State Snapshot](#current-state-snapshot)
 13. [Roadmap — Retrieval & Answer Quality](#roadmap--retrieval--answer-quality)
@@ -487,12 +488,40 @@ Eval:         Separate eval-dashboard/ static site → https://askprism-eval.ver
               Versioning: MAJOR.MINOR.PATCH — name changes on MAJOR only (v1.x.x=Violet, v2.x.x=Indigo)
 Frontend:     Violet v1.3 badge in sidebar footer. Maintenance banner config-driven (frontend/src/config.js).
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
-Infra:        Render (backend, ephemeral FS — re-upload required after cold start) +
+Infra:        HF Spaces CPU Basic (backend, 16GB RAM, ephemeral FS — re-upload required after cold start) +
               https://askprism.vercel.app/ (frontend) + https://askprism-eval.vercel.app/ (eval)
-Known limits: Euron embed ~52s for 30 chunks (sync, blocking). Next: move to background.
-              Render ephemeral FS: chroma_db lost on restart. Fix: Render persistent disk.
+              Backend URL: https://benroshan-prism.hf.space
+Known limits: Euron embed ~5s/chunk sequential — 30 chunks = ~150s blocking upload. Next: move embed to background.
+              HF Spaces ephemeral FS: chroma_db lost on cold start. Fix: mount HF persistent storage bucket.
 Observability: LangSmith traces all LLM + retrieval calls (optional, env var)
 ```
+
+---
+
+## Stage 12 — HF Spaces Migration (2026-06-22)
+
+### What was wrong
+Render free tier (512MB RAM) caused repeated OOM crashes under contextual retrieval:
+- Base RSS after upload = 524MB (over the 512MB limit)
+- `gc.collect()` had no effect — ChromaDB HNSW index + torch runtime held by native allocators, not Python heap
+- Contextual refresh (3 async Groq coroutines) + simultaneous chat (Tavily + LLM + CrossEncoder) = peak exceeded 512MB
+- Workarounds (RSS guard skipping contextual retrieval, web search suppression during refresh) negated the +18% recall improvement
+
+### What we built
+
+| File | Change |
+|------|--------|
+| `Dockerfile` | Port 8000 → 7860 (HF convention). Add `useradd -m -u 1000 user` + `chown -R user /app` (HF runs containers as UID 1000). Set `HF_HOME=/app/.cache/huggingface` BEFORE pre-download so user 1000 owns cached weights. Set `HF_HUB_OFFLINE=1` AFTER download. |
+| `README.md` | Added HF Spaces frontmatter (`sdk: docker`, `app_port: 7860`). Updated deploy instructions. |
+| `server/routes/chat.py` | Removed `is_contextualizing` web search suppression guard (Render-specific). |
+| `server/routes/upload.py` | Removed `RSS > 460MB` contextual retrieval skip guard (Render-specific). |
+| `docs/`, `decisions.md` | Render → HF Spaces across all infra references. |
+
+### Key discoveries
+- HF_HUB_OFFLINE must be set AFTER the pre-download RUN step — setting it before blocks the download itself
+- Docker build runs pre-download as root by default; must `USER 1000` first then set `HF_HOME` under `/app` so runtime user 1000 can read the cached weights
+- HF Spaces free CPU Basic: 2 vCPUs, 16GB RAM — resolves all Render OOM issues permanently
+- Contextual retrieval now runs fully in production (was silently skipped by RSS guard on Render)
 
 ---
 
@@ -528,7 +557,7 @@ Observability: LangSmith traces all LLM + retrieval calls (optional, env var)
 ### Phase 3 — UX + trust
 
 #### Streaming Responses
-- **Problem:** User submits question → 8–15s wait → full answer appears. On Render free vCPU this feels broken.
+- **Problem:** User submits question → 8–15s wait → full answer appears. Feels broken even on fast hardware.
 - **How:** Backend: `chain.astream_events()` → `StreamingResponse` yielding SSE tokens. Frontend: `EventSource` or `fetch` + `ReadableStream` — append tokens as they arrive. Faithfulness scoring runs as background task after full answer assembled.
 - **Effort:** High — both backend and frontend change. `ConversationalRetrievalChain` supports `astream_events()` in LangChain ≥0.2.
 - **Impact:** Perceived latency drops from 10s to ~1s. Single biggest UX improvement.
