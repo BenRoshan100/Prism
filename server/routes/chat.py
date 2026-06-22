@@ -42,23 +42,17 @@ async def chat(
     web_sources = []
     question = body.question
 
-    is_contextualizing = getattr(request.app.state, "is_contextualizing", False)
-    web_search_active = body.web_search and not is_contextualizing
-    if is_contextualizing and body.web_search:
-        logger.warning("QUERY skipping web search — contextual refresh in progress (memory guard)")
-
     log_memory_mb(logger, "chat-start")
-    logger.info("QUERY | workspace=%s | web_search=%s | contextualizing=%s | %s",
-                workspace, web_search_active, is_contextualizing, body.question[:100])
+    logger.info("QUERY | workspace=%s | web_search=%s | %s", workspace, body.web_search, body.question[:100])
 
-    if web_search_active:
+    if body.web_search:
         from server.web_search import search_web
         memory = request.app.state.memory
         search_query = condense_question(question, memory)
         web_sources = search_web(search_query)
 
     memory = request.app.state.memory
-    if web_search_active and web_sources:
+    if body.web_search and web_sources:
         result = run_query_with_web(chain, retriever, memory, question, web_sources)
     else:
         result = run_query_with_web(chain, retriever, memory, question, [])
@@ -84,7 +78,7 @@ async def chat(
     })
 
     retrieval_method = result.get("retrieval_method", "hybrid+rerank")
-    if web_search_active and web_sources:
+    if body.web_search and web_sources:
         retrieval_method += "+web"
 
     gc.collect()
