@@ -4,6 +4,12 @@ import os
 import yaml
 from pathlib import Path
 
+try:
+    import psutil as _psutil
+    _PSUTIL = True
+except ImportError:
+    _PSUTIL = False
+
 _logging_configured = False
 
 
@@ -62,3 +68,12 @@ def load_config(config_path: str = "config.yaml") -> dict:
 def count_tokens(text: str) -> int:
     """Approximate token count: len(text.split()) * 1.3"""
     return int(len(text.split()) * 1.3)
+
+
+def log_memory_mb(logger: logging.Logger, label: str) -> float:
+    """Log current process RSS in MB. Returns MB (0 if psutil unavailable)."""
+    if not _PSUTIL:
+        return 0.0
+    rss = _psutil.Process().memory_info().rss / 1024 / 1024
+    logger.info("MEM [%s] RSS=%.1fMB", label, rss)
+    return rss

@@ -11,7 +11,7 @@ from server.bm25_index import build_from_vectorstore, DEFAULT_WORKSPACE as BM25_
 from server.reranker import load_reranker
 from server.memory import create_memory
 from server.chain import build_qa_chain
-from server.utils import configure_logging, setup_logger
+from server.utils import configure_logging, setup_logger, log_memory_mb
 
 configure_logging()
 logger = setup_logger(__name__)
@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     app.state.retriever = None
     app.state.chain = None
     app.state.eval_log = []
+    app.state.is_contextualizing = False  # True while background contextual refresh runs
 
     # Pre-load reranker to avoid cold-start latency on first query
     load_reranker()
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("No documents found - chain will be built after first upload")
 
+    log_memory_mb(logger, "startup")
     logger.info("Prism server ready")
     yield
 

@@ -12,7 +12,7 @@ from server.retriever import get_document_stats, get_retriever, get_vectorstore,
 from server.bm25_index import build_from_vectorstore
 from server.chain import build_qa_chain
 from server.memory import create_memory
-from server.utils import setup_logger, load_config
+from server.utils import setup_logger, load_config, log_memory_mb
 from server.briefing import generate_briefing
 
 logger = setup_logger(__name__)
@@ -41,7 +41,9 @@ async def _contextual_refresh_bg(
     max_concurrent: int = 20,
 ) -> None:
     """Background: replace non-contextual chunks with parallel-async contextual versions."""
+    app.state.is_contextualizing = True
     try:
+        log_memory_mb(logger, "ctx-refresh-start")
         logger.info(
             "Contextual refresh start: workspace=%s, %d chunks, model=%s, concurrency=%d",
             workspace, len(original_chunks), ctx_model, max_concurrent,
@@ -59,9 +61,12 @@ async def _contextual_refresh_bg(
 
         embed_and_store(ctx_chunks, collection_name=workspace)
         _rebuild_chain(app, workspace)
+        log_memory_mb(logger, "ctx-refresh-done")
         logger.info("Contextual refresh done: workspace=%s", workspace)
     except Exception as e:
         logger.error("Contextual refresh failed: workspace=%s: %s", workspace, e)
+    finally:
+        app.state.is_contextualizing = False
 
 
 @router.post("/upload")
