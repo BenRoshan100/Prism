@@ -1,4 +1,5 @@
 import copy
+import gc
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Request, UploadFile, File, Form, HTTPException, Query
@@ -43,6 +44,7 @@ async def _contextual_refresh_bg(
     """Background: replace non-contextual chunks with parallel-async contextual versions."""
     app.state.is_contextualizing = True
     try:
+        gc.collect()  # free upload response objects before adding contextual refresh memory
         log_memory_mb(logger, "ctx-refresh-start")
         logger.info(
             "Contextual refresh start: workspace=%s, %d chunks, model=%s, concurrency=%d",
@@ -105,7 +107,13 @@ async def upload_files(
     # Embed non-contextual immediately so user can query right away
     embed_and_store(chunks, collection_name=workspace)
 
-    # Generate briefing from embedded chunks
+    # Rebuild chain before briefing so embed response objects can be GC'd
+    _rebuild_chain(request.app, workspace)
+    logger.info("Chain rebuilt after upload (workspace=%s)", workspace)
+    gc.collect()
+    log_memory_mb(logger, "post-embed-gc")
+
+    # Generate briefing after GC to avoid holding embed + briefing response objects simultaneously
     briefing = None
     try:
         vs = get_vectorstore(workspace)
@@ -116,9 +124,8 @@ async def upload_files(
     except Exception as e:
         logger.warning("Briefing skipped: %s", e)
 
-    # Rebuild chain on non-contextual (queryable immediately)
-    _rebuild_chain(request.app, workspace)
-    logger.info("Chain rebuilt after upload (workspace=%s)", workspace)
+    gc.collect()
+    log_memory_mb(logger, "post-briefing-gc")
 
     # Schedule background contextual replacement if enabled
     cfg = load_config()
