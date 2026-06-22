@@ -44,8 +44,19 @@ async def _contextual_refresh_bg(
     """Background: replace non-contextual chunks with parallel-async contextual versions."""
     app.state.is_contextualizing = True
     try:
-        gc.collect()  # free upload response objects before adding contextual refresh memory
-        log_memory_mb(logger, "ctx-refresh-start")
+        gc.collect()
+        from server.utils import log_memory_mb as _lmb
+        rss = _lmb(logger, "ctx-refresh-start")
+        # Safety: if base RSS already above threshold, skip contextualization entirely.
+        # Non-contextual chunks are already indexed and queryable.
+        RSS_LIMIT_MB = 460
+        if rss > RSS_LIMIT_MB:
+            logger.warning(
+                "Contextual refresh SKIPPED: RSS=%.1fMB exceeds %.0fMB guard — "
+                "non-contextual chunks remain active. Upgrade to paid tier for contextual retrieval.",
+                rss, RSS_LIMIT_MB,
+            )
+            return
         logger.info(
             "Contextual refresh start: workspace=%s, %d chunks, model=%s, concurrency=%d",
             workspace, len(original_chunks), ctx_model, max_concurrent,
