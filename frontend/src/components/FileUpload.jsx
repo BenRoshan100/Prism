@@ -1,26 +1,57 @@
-import { useState, useRef } from "react";
-import { uploadFiles, uploadUrl } from "../api";
+import { useState, useRef, useEffect } from "react";
+import { uploadFiles, uploadUrl, getUploadStatus, getDocuments } from "../api";
 
 export default function FileUpload({ onUploadComplete, onBriefing, currentWorkspace = "default" }) {
   const [uploading, setUploading] = useState(false);
+  const [stageMsg, setStageMsg] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState("file"); // "file" | "url"
   const [urlInput, setUrlInput] = useState("");
   const fileInputRef = useRef(null);
+  const pollRef = useRef(null);
+
+  // Clean up polling on unmount
+  useEffect(() => () => clearInterval(pollRef.current), []);
+
+  function startPolling(jobId) {
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await getUploadStatus(jobId);
+        setStageMsg(status.message);
+
+        if (status.status === "ready") {
+          clearInterval(pollRef.current);
+          const docs = await getDocuments(currentWorkspace);
+          onUploadComplete(docs.documents);
+          if (status.briefing && onBriefing) onBriefing(status.briefing);
+          setUploading(false);
+          setStageMsg("");
+        } else if (status.status === "failed") {
+          clearInterval(pollRef.current);
+          setError(status.error || "Processing failed");
+          setUploading(false);
+          setStageMsg("");
+        }
+      } catch {
+        // transient poll error — keep trying
+      }
+    }, 2000);
+  }
 
   async function handleFiles(files) {
     if (!files.length) return;
     setUploading(true);
     setError(null);
+    setStageMsg("Uploading...");
     try {
       const data = await uploadFiles(files, currentWorkspace);
-      onUploadComplete(data.documents);
-      if (data.briefing && onBriefing) onBriefing(data.briefing);
+      setStageMsg(data.message || "Embedding...");
+      startPolling(data.job_id);
     } catch (err) {
       setError(err.response?.data?.detail || "Upload failed");
-    } finally {
       setUploading(false);
+      setStageMsg("");
     }
   }
 
@@ -30,6 +61,7 @@ export default function FileUpload({ onUploadComplete, onBriefing, currentWorksp
     if (!url) return;
     setUploading(true);
     setError(null);
+    setStageMsg("Ingesting URL...");
     try {
       const data = await uploadUrl(url, currentWorkspace);
       onUploadComplete(data.documents);
@@ -39,6 +71,7 @@ export default function FileUpload({ onUploadComplete, onBriefing, currentWorksp
       setError(err.response?.data?.detail || "URL ingestion failed");
     } finally {
       setUploading(false);
+      setStageMsg("");
     }
   }
 
@@ -77,14 +110,16 @@ export default function FileUpload({ onUploadComplete, onBriefing, currentWorksp
       {tab === "file" ? (
         <>
           <div
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => !uploading && fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
-            className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
-              dragOver
-                ? "border-indigo-500 bg-indigo-50"
-                : "border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50"
+            className={`border-2 border-dashed rounded-xl p-5 text-center transition-all ${
+              uploading
+                ? "border-indigo-300 bg-indigo-50/50 cursor-default"
+                : dragOver
+                ? "border-indigo-500 bg-indigo-50 cursor-pointer"
+                : "border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer"
             }`}
           >
             {uploading ? (
@@ -93,7 +128,7 @@ export default function FileUpload({ onUploadComplete, onBriefing, currentWorksp
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                <p className="text-sm text-indigo-600 font-medium">Processing...</p>
+                <p className="text-sm text-indigo-600 font-medium">{stageMsg || "Processing..."}</p>
               </div>
             ) : (
               <>
@@ -130,7 +165,7 @@ export default function FileUpload({ onUploadComplete, onBriefing, currentWorksp
             disabled={uploading || !urlInput.trim()}
             className="w-full py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:bg-indigo-200 disabled:cursor-not-allowed transition-colors"
           >
-            {uploading ? "Ingesting..." : "Ingest URL"}
+            {uploading ? stageMsg || "Ingesting..." : "Ingest URL"}
           </button>
         </form>
       )}

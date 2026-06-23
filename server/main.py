@@ -26,6 +26,7 @@ async def lifespan(app: FastAPI):
     app.state.chain = None
     app.state.eval_log = []
     app.state.is_contextualizing = False  # True while background contextual refresh runs
+    app.state.upload_jobs = {}  # job_id -> {status, message, briefing, error, workspace}
 
     # Pre-load reranker to avoid cold-start latency on first query
     load_reranker()

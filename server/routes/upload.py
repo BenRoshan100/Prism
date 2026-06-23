@@ -1,8 +1,10 @@
 import copy
 import gc
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Request, UploadFile, File, Form, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from server.ingest import (
@@ -32,46 +34,86 @@ def _rebuild_chain(app, workspace: str) -> None:
     app.state.chain = build_qa_chain(app.state.retriever, app.state.memory)
 
 
-async def _contextual_refresh_bg(
+async def _embed_and_contextualize_bg(
     app,
     documents: list,
-    original_chunks: list,
+    chunks: list,
     workspace: str,
-    ctx_model: str,
-    source_filenames: list[str],
-    max_concurrent: int = 20,
+    saved_paths: list[str],
+    job_id: str,
 ) -> None:
-    """Background: replace non-contextual chunks with parallel-async contextual versions."""
-    app.state.is_contextualizing = True
+    """Background: embed chunks, rebuild chain, generate briefing, optionally contextualize."""
+    jobs = app.state.upload_jobs
+    cfg = load_config()
+    ctx_cfg = cfg.get("contextual_retrieval", {})
+
     try:
-        gc.collect()
-        log_memory_mb(logger, "ctx-refresh-start")
-        logger.info(
-            "Contextual refresh start: workspace=%s, %d chunks, model=%s, concurrency=%d",
-            workspace, len(original_chunks), ctx_model, max_concurrent,
-        )
-        ctx_chunks = copy.deepcopy(original_chunks)
-        await contextualize_chunks_async(ctx_chunks, documents, model=ctx_model, max_concurrent=max_concurrent)
+        # Phase 1: embed
+        n = len(chunks)
+        jobs[job_id]["status"] = "embedding"
+        jobs[job_id]["message"] = f"Embedding {n} chunks..."
+        log_memory_mb(logger, "bg-embed-start")
 
-        vs = get_vectorstore(workspace)
-        for filename in source_filenames:
-            result = vs.get(where={"source": filename})
-            old_ids = result.get("ids", [])
-            if old_ids:
-                vs.delete(ids=old_ids)
-                logger.info("Deleted %d non-contextual chunks for %s", len(old_ids), filename)
-
-        embed_and_store(ctx_chunks, collection_name=workspace)
+        embed_and_store(chunks, collection_name=workspace)
         _rebuild_chain(app, workspace)
-        log_memory_mb(logger, "ctx-refresh-done")
-        logger.info("Contextual refresh done: workspace=%s", workspace)
+        gc.collect()
+        log_memory_mb(logger, "bg-embed-done")
+
+        # Briefing
+        briefing = None
+        try:
+            vs = get_vectorstore(workspace)
+            existing = vs.get(where={"source": Path(saved_paths[0]).name})
+            if existing and existing.get("documents"):
+                sample_text = " ".join(existing["documents"][:6])
+                briefing = generate_briefing(Path(saved_paths[0]).name, sample_text)
+        except Exception as e:
+            logger.warning("Briefing skipped: %s", e)
+        jobs[job_id]["briefing"] = briefing
+        gc.collect()
+
+        # Phase 2: contextual refresh (optional)
+        if ctx_cfg.get("enabled", False):
+            ctx_model = ctx_cfg.get("model", "llama-3.1-8b-instant")
+            max_concurrent = ctx_cfg.get("max_concurrent", 3)
+            source_filenames = [Path(p).name for p in saved_paths]
+
+            jobs[job_id]["status"] = "contextualizing"
+            jobs[job_id]["message"] = f"Adding context to {n} chunks..."
+            app.state.is_contextualizing = True
+            log_memory_mb(logger, "bg-ctx-start")
+
+            try:
+                ctx_chunks = copy.deepcopy(chunks)
+                await contextualize_chunks_async(
+                    ctx_chunks, documents, model=ctx_model, max_concurrent=max_concurrent
+                )
+                vs = get_vectorstore(workspace)
+                for filename in source_filenames:
+                    result = vs.get(where={"source": filename})
+                    old_ids = result.get("ids", [])
+                    if old_ids:
+                        vs.delete(ids=old_ids)
+                embed_and_store(ctx_chunks, collection_name=workspace)
+                _rebuild_chain(app, workspace)
+                log_memory_mb(logger, "bg-ctx-done")
+            finally:
+                app.state.is_contextualizing = False
+                gc.collect()
+
+        jobs[job_id]["status"] = "ready"
+        jobs[job_id]["message"] = "Ready"
+        logger.info("Upload job %s complete (workspace=%s)", job_id, workspace)
+
     except Exception as e:
-        logger.error("Contextual refresh failed: workspace=%s: %s", workspace, e)
-    finally:
+        logger.error("Upload job %s failed: %s", job_id, e)
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["message"] = "Processing failed"
+        jobs[job_id]["error"] = str(e)
         app.state.is_contextualizing = False
 
 
-@router.post("/upload")
+@router.post("/upload", status_code=202)
 async def upload_files(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -79,9 +121,9 @@ async def upload_files(
     workspace: str = Form("default"),
 ):
     """
-    Accept file uploads (PDF, TXT, CSV).
-    Save to data/raw/, run ingestion into the given workspace, rebuild chain.
-    If contextual_retrieval.enabled, schedules async background contextualization after fast initial embed.
+    Accept file uploads. Parse and chunk synchronously (fast), return 202 with job_id.
+    Embedding and contextualisation run in background.
+    Poll GET /api/upload/status/{job_id} for progress.
     """
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -95,59 +137,47 @@ async def upload_files(
         with open(dest, "wb") as out:
             out.write(content)
         saved_paths.append(str(dest))
-        logger.info(f"Saved uploaded file: {f.filename} (workspace={workspace})")
+        logger.info("Saved uploaded file: %s (workspace=%s)", f.filename, workspace)
 
-    # Load + chunk (fast)
+    # Parse + chunk synchronously so we can return 422 for bad files immediately
     try:
         documents = load_documents_from_paths(saved_paths)
     except ValueError as e:
         raise HTTPException(422, str(e))
     chunks = chunk_documents(documents)
 
-    # Embed non-contextual immediately so user can query right away
-    embed_and_store(chunks, collection_name=workspace)
+    # Register job
+    job_id = uuid.uuid4().hex
+    request.app.state.upload_jobs[job_id] = {
+        "status": "embedding",
+        "message": f"Embedding {len(chunks)} chunks...",
+        "briefing": None,
+        "error": None,
+        "workspace": workspace,
+    }
 
-    # Rebuild chain before briefing so embed response objects can be GC'd
-    _rebuild_chain(request.app, workspace)
-    logger.info("Chain rebuilt after upload (workspace=%s)", workspace)
-    gc.collect()
-    log_memory_mb(logger, "post-embed-gc")
+    background_tasks.add_task(
+        _embed_and_contextualize_bg,
+        request.app, documents, chunks, workspace, saved_paths, job_id,
+    )
 
-    # Generate briefing after GC to avoid holding embed + briefing response objects simultaneously
-    briefing = None
-    try:
-        vs = get_vectorstore(workspace)
-        existing = vs.get(where={"source": Path(saved_paths[0]).name})
-        if existing and existing.get("documents"):
-            sample_text = " ".join(existing["documents"][:6])
-            briefing = generate_briefing(Path(saved_paths[0]).name, sample_text)
-    except Exception as e:
-        logger.warning("Briefing skipped: %s", e)
+    logger.info(
+        "Upload job %s started: workspace=%s, %d chunks", job_id, workspace, len(chunks)
+    )
+    return {"job_id": job_id, "uploaded": [f.filename for f in files], "total_chunks": len(chunks)}
 
-    gc.collect()
-    log_memory_mb(logger, "post-briefing-gc")
 
-    # Schedule background contextual replacement if enabled
-    cfg = load_config()
-    ctx_cfg = cfg.get("contextual_retrieval", {})
-    if ctx_cfg.get("enabled", False):
-        ctx_model = ctx_cfg.get("model", "llama-3.1-8b-instant")
-        source_filenames = [Path(p).name for p in saved_paths]
-        max_concurrent = ctx_cfg.get("max_concurrent", 20)
-        background_tasks.add_task(
-            _contextual_refresh_bg,
-            request.app, documents, chunks, workspace, ctx_model, source_filenames, max_concurrent,
-        )
-        logger.info(
-            "Contextual refresh scheduled: workspace=%s, %d chunks → ~%ds background",
-            workspace, len(chunks), max(5, len(chunks) // 4),
-        )
-
-    docs = get_document_stats(workspace)
+@router.get("/upload/status/{job_id}")
+async def upload_status(job_id: str, request: Request):
+    """Poll upload job status. Returns status, message, and briefing when ready."""
+    job = request.app.state.upload_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(404, f"Job '{job_id}' not found")
     return {
-        "uploaded": [f.filename for f in files],
-        "documents": docs,
-        "briefing": briefing,
+        "status": job["status"],
+        "message": job["message"],
+        "briefing": job.get("briefing"),
+        "error": job.get("error"),
     }
 
 
@@ -219,7 +249,6 @@ async def delete_document(filename: str, request: Request, workspace: str = Quer
     """
     vectorstore = get_vectorstore(workspace)
 
-    # Find all chunk IDs for this source
     try:
         result = vectorstore.get(where={"source": filename})
         chunk_ids = result.get("ids", [])
@@ -229,17 +258,14 @@ async def delete_document(filename: str, request: Request, workspace: str = Quer
     if not chunk_ids:
         raise HTTPException(404, f"Document '{filename}' not found in index")
 
-    # Delete from ChromaDB
     vectorstore.delete(ids=chunk_ids)
     logger.info(f"Deleted {len(chunk_ids)} chunks for '{filename}' from ChromaDB (workspace={workspace})")
 
-    # Delete raw file if it exists
     file_path = UPLOAD_DIR / filename
     if file_path.exists():
         file_path.unlink()
         logger.info(f"Deleted file: {file_path}")
 
-    # Rebuild BM25 + chain
     invalidate_cache(workspace)
     build_from_vectorstore(get_vectorstore(workspace), workspace_id=workspace)
     request.app.state.retriever = get_retriever(workspace)

@@ -35,8 +35,13 @@ export async function uploadFiles(fileList, workspaceId = "default") {
   formData.append("workspace", workspaceId);
   const { data } = await api.post("/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" },
-    timeout: 300000,
+    timeout: 30000,
   });
+  return data;
+}
+
+export async function getUploadStatus(jobId) {
+  const { data } = await api.get(`/upload/status/${jobId}`);
   return data;
 }
 
