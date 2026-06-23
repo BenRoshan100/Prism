@@ -46,7 +46,8 @@ def generate_briefing(doc_name: str, text_sample: str) -> dict:
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if not match:
             raise ValueError(f"No JSON object in LLM response: {raw[:100]}")
-        data = json.loads(match.group())
+        cleaned = re.sub(r",\s*([}\]])", r"\1", match.group())  # strip trailing commas
+        data = json.loads(cleaned)
         return {
             "doc_name": doc_name,
             "summary": data.get("summary", [])[:5],
