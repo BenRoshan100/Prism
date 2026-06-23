@@ -235,7 +235,7 @@ def main():
     answer_llm = _make_llm(config["llm"]["model"], temperature=0.1, max_tokens=500)
     judge_llm = _make_llm(args.judge_model, temperature=0.0, max_tokens=200)
 
-    ragas_llm = LangchainLLMWrapper(_make_llm(args.judge_model, temperature=0.0, max_tokens=500))
+    ragas_llm = LangchainLLMWrapper(_make_llm(args.judge_model, temperature=0.0, max_tokens=1024))
     ragas_emb = LangchainEmbeddingsWrapper(
         _OAIEmb(
             model="text-embedding-3-small",
@@ -294,9 +294,9 @@ def main():
 
     # RAGAS batch eval — max_workers=2 to avoid Groq free-tier rate limit timeouts
     print(f"\nRunning RAGAS on {len(ragas_samples)} samples (answer_relevancy + context_recall)...")
-    print("Using max_workers=2 to avoid Groq rate limits — will take ~15-20 min for 50 samples")
+    print("Using max_workers=1 to avoid Groq rate limits — will take ~25-35 min for 50 samples")
     dataset = EvaluationDataset(samples=ragas_samples)
-    ragas_cfg = RunConfig(timeout=120, max_workers=2, max_retries=5)
+    ragas_cfg = RunConfig(timeout=180, max_workers=1, max_retries=10)
     results = evaluate(
         dataset=dataset,
         metrics=[
