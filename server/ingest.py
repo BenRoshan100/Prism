@@ -99,25 +99,37 @@ def ingest_files(file_paths: list[str], collection_name: str = "default") -> Chr
 
 
 def chunk_documents(documents: list, chunk_size: int = 500, chunk_overlap: int = 50) -> list:
-    """
-    Split documents using RecursiveCharacterTextSplitter.
-    Preserve metadata from parent document. Add chunk_index to metadata.
-    """
+    """Split documents into chunks. Uses SemanticChunker if chunking.semantic_enabled=true,
+    otherwise RecursiveCharacterTextSplitter with fixed chunk_size/overlap."""
     config = load_config()
-    chunk_size = config.get("chunking", {}).get("chunk_size", chunk_size)
-    chunk_overlap = config.get("chunking", {}).get("chunk_overlap", chunk_overlap)
+    chunking_cfg = config.get("chunking", {})
+    chunk_size = chunking_cfg.get("chunk_size", chunk_size)
+    chunk_overlap = chunking_cfg.get("chunk_overlap", chunk_overlap)
+    semantic_enabled = chunking_cfg.get("semantic_enabled", False)
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-    )
+    if semantic_enabled:
+        from langchain_experimental.text_splitter import SemanticChunker
+        from langchain_openai import OpenAIEmbeddings
+        embeddings = OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            openai_api_key=os.environ.get("EURON_API_KEY"),
+            openai_api_base="https://api.euron.one/api/v1/euri",
+        )
+        splitter = SemanticChunker(embeddings, breakpoint_threshold_type="percentile")
+        logger.info("Chunking with SemanticChunker (percentile breakpoints)")
+    else:
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
 
     chunks = splitter.split_documents(documents)
 
     for i, chunk in enumerate(chunks):
         chunk.metadata["chunk_index"] = i
 
-    logger.info(f"Created {len(chunks)} chunks (size={chunk_size}, overlap={chunk_overlap})")
+    method = "semantic" if semantic_enabled else f"fixed size={chunk_size}, overlap={chunk_overlap}"
+    logger.info(f"Created {len(chunks)} chunks ({method})")
     return chunks
 
 

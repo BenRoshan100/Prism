@@ -1,6 +1,7 @@
 chunking:
   chunk_size: 500
   chunk_overlap: 50
+  semantic_enabled: false   # true = SemanticChunker (topic boundaries); false = fixed 500-char splits
 
 retrieval:
   collection_name: "prism"
