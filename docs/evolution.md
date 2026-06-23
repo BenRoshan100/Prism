@@ -525,6 +525,27 @@ Render free tier (512MB RAM) caused repeated OOM crashes under contextual retrie
 
 ---
 
+## Stage 13 — Async Embed Upload (2026-06-23)
+
+### What was wrong
+`embed_and_store()` blocked `POST /api/upload` for ~150s (30 chunks × ~5s/chunk via Euron API). User saw spinner, could not query, could not cancel. Upload timeout was 300s.
+
+### What we built
+
+| File | Change |
+|------|--------|
+| `server/main.py` | `app.state.upload_jobs = {}` initialized in lifespan |
+| `server/routes/upload.py` | `POST /api/upload` returns 202 + `job_id` in <1s. Parse+chunk sync; embed+contextual in `_embed_and_contextualize_bg()` BackgroundTask. New `GET /api/upload/status/{job_id}` endpoint. |
+| `frontend/src/api.js` | Added `getUploadStatus(jobId)`; reduced `uploadFiles` timeout 300s → 30s |
+| `frontend/src/components/FileUpload.jsx` | Polls status every 2s; shows stage label under spinner; fires callbacks on ready. Defensive `|| []` guard on documents. |
+
+### Key discoveries
+- Old Vercel frontend receiving new 202 response before redeploy → `data.documents` undefined → React crash. Fix: defensive `docs?.documents || []` guard.
+- Groq TPM 429s at `max_concurrent=3` still hit (~5/30 chunks fall back to original text) — some chunks are larger than average. Retry logic handles gracefully.
+- Briefing fails with JSON parse error (pre-existing bug in `generate_briefing` — separate fix).
+
+---
+
 ## Roadmap — Retrieval & Answer Quality
 
 ### Phase 1 — Quick wins (no infra change, measurable RAGAS lift)
