@@ -23,7 +23,7 @@ export default function FileUpload({ onUploadComplete, onBriefing, currentWorksp
         if (status.status === "ready") {
           clearInterval(pollRef.current);
           const docs = await getDocuments(currentWorkspace);
-          onUploadComplete(docs.documents);
+          onUploadComplete(docs?.documents || []);
           if (status.briefing && onBriefing) onBriefing(status.briefing);
           setUploading(false);
           setStageMsg("");
