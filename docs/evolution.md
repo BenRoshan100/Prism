@@ -494,6 +494,9 @@ Infra:        HF Spaces CPU Basic (backend, 16GB RAM, ephemeral FS — re-upload
 Known limits: Euron embed ~5s/chunk sequential — 30 chunks = ~150s blocking upload. Next: move embed to background.
               HF Spaces ephemeral FS: chroma_db lost on cold start. Fix: mount HF persistent storage bucket.
 Observability: LangSmith traces all LLM + retrieval calls (optional, env var)
+Streaming:    POST /api/chat returns SSE stream. token events per LLM chunk, done event with
+              sources + retrieval_method. Frontend streams tokens into pre-placed assistant
+              bubble. Bouncing dots while condense+search runs, blinking cursor during generation.
 ```
 
 ---
