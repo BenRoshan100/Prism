@@ -1,3 +1,5 @@
+from typing import AsyncGenerator
+
 from langchain_core.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 from langchain_classic.chains import ConversationalRetrievalChain
@@ -215,6 +217,88 @@ def run_query_with_web(
         "answer": answer,
         "source_documents": rag_docs,
         "question": question,
+        "retrieval_method": "hybrid+rerank+web",
+    }
+
+
+async def stream_query_with_web(
+    retriever, memory, question: str, web_sources: list[dict]
+) -> AsyncGenerator[dict, None]:
+    """
+    Streaming variant of run_query_with_web. Yields token/done/error dicts.
+    run_query_with_web is preserved unchanged for eval script compatibility.
+
+    Yields:
+        {"type": "token", "content": str}  — one per LLM output chunk
+        {"type": "done", "sources": list, "retrieval_method": str}  — after stream completes
+        {"type": "error", "message": str}  — on LLM failure (then returns)
+    """
+    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+
+    # RAG retrieval
+    rag_docs_lc = retriever.invoke(question)
+    rag_docs = []
+    for doc in rag_docs_lc:
+        rag_docs.append({
+            "content": doc.page_content,
+            "source": doc.metadata.get("source", ""),
+            "page": doc.metadata.get("page", None),
+            "chunk_index": doc.metadata.get("chunk_index", None),
+            "citation_index": doc.metadata.get("citation_index"),
+            "similarity_score": doc.metadata.get("similarity_score"),
+            "bm25_score": doc.metadata.get("bm25_score"),
+            "rrf_score": doc.metadata.get("rrf_score"),
+            "rerank_score": doc.metadata.get("rerank_score"),
+        })
+
+    # Build combined context string
+    rag_ctx = "\n\n".join(
+        f"[Doc: {d['source']}]\n{d['content']}" for d in rag_docs
+    ) or "No document context."
+    if web_sources:
+        web_ctx = "\n\n".join(
+            f"[Web: {w['title']} | {w['url']}]\n{w['content']}" for w in web_sources
+        )
+        combined = f"=== Document context ===\n{rag_ctx}\n\n=== Web search results ===\n{web_ctx}"
+    else:
+        combined = rag_ctx
+
+    config = load_config()
+    llm = _create_llm(config.get("llm", {}))
+
+    # Build messages: system + history + current turn
+    messages = [SystemMessage(content=SYSTEM_PROMPT)]
+    history = memory.load_memory_variables({}).get("chat_history", [])
+    for msg in history:
+        if hasattr(msg, "type"):
+            if msg.type == "human":
+                messages.append(HumanMessage(content=msg.content))
+            else:
+                messages.append(AIMessage(content=msg.content))
+    messages.append(
+        HumanMessage(content=f"Context:\n{combined}\n\nQuestion: {question}\n\nAnswer:")
+    )
+
+    full_answer_parts: list[str] = []
+    try:
+        async for chunk in llm.astream(messages):
+            if chunk.content:
+                full_answer_parts.append(chunk.content)
+                yield {"type": "token", "content": chunk.content}
+    except Exception as e:
+        yield {"type": "error", "message": str(e)}
+        return
+
+    answer = "".join(full_answer_parts)
+    memory.save_context({"input": question}, {"answer": answer})
+    logger.info(
+        "stream_query_with_web | rag=%d web=%d history=%d",
+        len(rag_docs), len(web_sources), len(history),
+    )
+
+    yield {
+        "type": "done",
+        "sources": rag_docs,
         "retrieval_method": "hybrid+rerank+web",
     }
 
