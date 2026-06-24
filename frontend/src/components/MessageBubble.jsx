@@ -73,19 +73,27 @@ export default function MessageBubble({ message }) {
         <p className="text-sm whitespace-pre-wrap leading-relaxed">
           {isUser ? (
             message.content
+          ) : message.loading && !message.content ? (
+            <span className="inline-flex items-center gap-1 text-indigo-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" />
+            </span>
           ) : (
-            <CitedText
-              text={message.content}
-              onCitationClick={handleCitationClick}
-            />
+            <>
+              <CitedText text={message.content} onCitationClick={handleCitationClick} />
+              {message.loading && (
+                <span className="inline-block w-0.5 h-4 bg-indigo-400 animate-pulse ml-0.5 align-middle" />
+              )}
+            </>
           )}
         </p>
 
-        {!isUser && message.sources && (
+        {!isUser && !message.loading && message.sources && (
           <WebSourcesList sources={message.sources} />
         )}
 
-        {!isUser && message.sources && (
+        {!isUser && !message.loading && message.sources && (
           <SourceExpander sources={message.sources} />
         )}
       </div>

@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import { sendMessage } from "../api";
+import { useState, useEffect, useRef } from "react";
+import { streamChat } from "../api";
 import MessageBubble from "./MessageBubble";
 
 export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion, onSuggestedQuestionUsed, currentWorkspace = "default" }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const webSearch = true;
+  const bottomRef = useRef(null);
 
   useEffect(() => {
     if (suggestedQuestion) {
@@ -15,38 +15,62 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
     }
   }, [suggestedQuestion, onSuggestedQuestionUsed]);
 
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   async function handleSend(e) {
     e.preventDefault();
     if (!input.trim() || loading || !hasDocuments) return;
 
     const question = input.trim();
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: question, webSearch }]);
+    const msgId = crypto.randomUUID();
+    const tokenBuffer = [];
+
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: question },
+      { id: msgId, role: "assistant", content: "", sources: [], loading: true },
+    ]);
     setLoading(true);
 
-    try {
-      const data = await sendMessage(question, webSearch, currentWorkspace);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.answer,
-          sources: data.sources,
-        },
-      ]);
-      onEvalEntry({
-        query: question,
-        answer: data.answer,
-      });
-    } catch (err) {
-      const detail = err.response?.data?.detail || err.message;
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Error: " + detail },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+    await streamChat(question, currentWorkspace, {
+      onToken: (token) => {
+        tokenBuffer.push(token);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId ? { ...m, content: m.content + token } : m
+          )
+        );
+      },
+      onDone: (event) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId
+              ? {
+                  ...m,
+                  sources: event.sources ?? [],
+                  retrieval_method: event.retrieval_method,
+                  loading: false,
+                }
+              : m
+          )
+        );
+        onEvalEntry?.({ query: question, answer: tokenBuffer.join("") });
+      },
+      onError: (message) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId
+              ? { ...m, content: `Error: ${message}`, loading: false }
+              : m
+          )
+        );
+      },
+    });
+
+    setLoading(false);
   }
 
   return (
@@ -81,32 +105,9 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
           </div>
         )}
         {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} />
+          <MessageBubble key={msg.id ?? i} message={msg} />
         ))}
-        {loading && (
-          <div className="flex items-center gap-2 text-indigo-400 text-sm">
-            <svg
-              className="w-4 h-4 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
-            <span>Thinking...</span>
-          </div>
-        )}
+        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
@@ -129,7 +130,7 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
             disabled={loading || !input.trim() || !hasDocuments}
             className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:bg-indigo-200 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
-            Send
+            {loading ? "..." : "Send"}
           </button>
         </div>
       </form>
