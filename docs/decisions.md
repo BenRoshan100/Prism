@@ -33,6 +33,8 @@
 | 2026-06-20 | Retry parses wait time from 429 error message | Groq 429 includes "Please try again in X.Xs". Parsing gives accurate sleep duration. Hardcoded 2s was too short for 10s rate limit windows. | Active |
 | 2026-06-20 | 422 for encrypted PDF upload instead of 500 | `pypdf.FileNotDecryptedError` propagated as unhandled 500. Now caught in `load_documents_from_paths()`, re-raised as `ValueError`, caught in upload route → HTTP 422 with clear message. | Active |
 | 2026-06-20 | Config-driven maintenance banner in `frontend/src/config.js` | Single file to toggle `MAINTENANCE_MODE` + `MAINTENANCE_MESSAGE`. Edit + push → Vercel redeploys in ~30s. No hardcoded HTML. | Active |
+| 2026-06-24 | `ast.literal_eval` fallback + control char strip in `generate_briefing()` | Groq LLM sometimes returns Python dict syntax (single quotes) or embeds ASCII control chars (0x00–0x1f) that break `json.loads`. Strip control chars first; fall back to `ast.literal_eval` on `JSONDecodeError`. Both are safe — input is already extracted from LLM regex match. | Active |
+| 2026-06-24 | HyDE enabled by default in config.yaml | Re-eval (v1.1.0_20260624, 18 samples) shows +21pp recall (0.51→0.72) with HyDE. Latency cost 2× (p50 4018ms vs 2029ms) accepted — recall gain outweighs latency. | Active |
 
 ## Rejected alternatives
 

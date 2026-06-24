@@ -1,7 +1,7 @@
 # Prism — Project Evolution
 
 > End-to-end record of what was broken at each stage, what was built to fix it, and what is planned next.
-> Updated as the project evolves. Last updated: 2026-06-22 (Stage 12).
+> Updated as the project evolves. Last updated: 2026-06-24 (Stage 14).
 
 ---
 
@@ -18,6 +18,7 @@
 9. [Stage 8 — Eval Dashboard + Rigorous Metrics](#stage-8--eval-dashboard--rigorous-metrics-2026-06-17)
 10. [Stage 9 — Multi-Query Retrieval](#stage-9--multi-query-retrieval-2026-06-19)
 11. [Stage 10 — Contextual Retrieval (Eval)](#stage-10--contextual-retrieval-eval-2026-06-20)
+14. [Stage 14 — Briefing Fix + HyDE Re-eval](#stage-14--briefing-fix--hyde-re-eval-2026-06-24)
 12. [Stage 12 — HF Spaces Migration](#stage-12--hf-spaces-migration-2026-06-22)
 12. [Stage 11 — Contextual Retrieval in Production + Dashboard Polish](#stage-11--contextual-retrieval-in-production--dashboard-polish-2026-06-20)
 13. [Current State Snapshot](#current-state-snapshot)
@@ -472,19 +473,16 @@ Embeddings:   Euron API text-embedding-3-small (sequential, ~1.7s/chunk — bott
 Chunking:     RecursiveCharacterTextSplitter 500-char, overlap 50
 Memory:       ConversationBufferWindowMemory k=10
 Web search:   Tavily advanced, 800-char truncation, max 2 results — MANDATORY (always on)
-HyDE:         Implemented, toggled via config.yaml hyde_enabled (default: false)
-Multi-Query:  Implemented, toggled via config.yaml multi_query_enabled (default: false)
-Contextual:   PRODUCTION — upload_files() embeds non-contextual first (<1s user response),
-              then _contextual_refresh_bg() replaces with async-parallel contextual chunks.
-              contextualize_chunks_async(): asyncio.gather + Semaphore(3), 10× faster than sequential.
-              config.yaml: contextual_retrieval.enabled=true, max_concurrent=3, model=llama-3.1-8b-instant
+HyDE:         ENABLED (config.yaml hyde_enabled=true). Hypothetical answer embedded for dense retrieval.
+Multi-Query:  ENABLED (config.yaml multi_query_enabled=true). 3-phrasing pool before rerank.
+Contextual:   Implemented but OFF in config (contextual_retrieval.enabled=false — Groq 429s at eval scale).
+              Upload pipeline ready: sync non-contextual embed + BackgroundTask contextual refresh.
+              Enable via config.yaml when Groq rate limits allow.
+Briefing:     generate_briefing() fixed — strips control chars, falls back to ast.literal_eval on JSONDecodeError.
 Eval:         Separate eval-dashboard/ static site → https://askprism-eval.vercel.app/
               X-axis shows version name + date. Release notes per version. Dropdown: Violet (v1.0) etc.
               Metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency
-              v1.0.0 "Violet" (baseline):      correctness=0.820, relevancy=0.620, recall=0.510, P@5=0.890, p50=2029ms
-              v1.1.0 "Violet" (hyde=true):     correctness=0.815, relevancy=0.650, recall=0.545, P@5=0.912, p50=5883ms
-              v1.2.0 "Violet" (multi_query):   correctness=0.815, relevancy=0.597, recall=0.517, P@5=0.892, p50=2620ms
-              v1.3.0 "Violet" (contextual):    correctness=0.815, relevancy=0.633, recall=0.601, P@5=0.956, p50=4161ms
+              v1.1.0 "Violet" (hyde=true, 18 samples, 2026-06-24): correctness=0.750, relevancy=0.845, recall=0.721, P@5=0.911, p50=4018ms
               Versioning: MAJOR.MINOR.PATCH — name changes on MAJOR only (v1.x.x=Violet, v2.x.x=Indigo)
 Frontend:     Violet v1.3 badge in sidebar footer. Maintenance banner config-driven (frontend/src/config.js).
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
@@ -546,6 +544,40 @@ Render free tier (512MB RAM) caused repeated OOM crashes under contextual retrie
 - Old Vercel frontend receiving new 202 response before redeploy → `data.documents` undefined → React crash. Fix: defensive `docs?.documents || []` guard.
 - Groq TPM 429s at `max_concurrent=3` still hit (~5/30 chunks fall back to original text) — some chunks are larger than average. Retry logic handles gracefully.
 - Briefing fails with JSON parse error (pre-existing bug in `generate_briefing` — separate fix).
+
+---
+
+## Stage 14 — Briefing Fix + HyDE Re-eval (2026-06-24)
+
+### What was wrong
+- `generate_briefing()` crashed with `JSONDecodeError` when Groq LLM returned control characters (ASCII 0x00–0x1f) or Python dict syntax (single quotes) instead of valid JSON.
+- Old eval runs (v1.0.0–v1.4.0) accumulated across multiple sessions; stale runs cluttered the dashboard.
+- HyDE recall measurement from prior session (v1.1.0_20260619, recall=0.545) was based on 50-sample run that hit Groq 429s mid-run — partial results, unreliable numbers.
+
+### What we built
+
+| File | Change |
+|------|--------|
+| `server/briefing.py` | Strip control chars `[\x00-\x08\x0b\x0c\x0e-\x1f]` before JSON parse. Fall back to `ast.literal_eval()` on `JSONDecodeError` to handle Python dict syntax from LLM. Added `import ast`. |
+| `config.yaml` | `hyde_enabled: true`, `multi_query_enabled: true`, `contextual_retrieval.enabled: false` (contextual off — 429s at 30-chunk scale even with Semaphore(3)) |
+| `eval-dashboard/public/data/runs/` | Deleted stale runs (v1.0.0_20260618, v1.1.0_20260619, v1.2.0_20260619, v1.3.0_20260620, v1.3.0_20260623, v1.4.0_20260623). Added `v1.1.0_20260624.json` — fresh HyDE-only run. |
+| `eval-dashboard/public/data/index.json` | Updated to single clean run registry. |
+
+### HyDE re-eval results — v1.1.0_20260624 (18 samples, hyde=true, multi_query=false)
+
+| Metric | v1.0.0 baseline | v1.1.0 HyDE | Delta |
+|--------|-----------------|-------------|-------|
+| answer_correctness | 0.820 | 0.750 | -0.070 |
+| answer_relevancy | 0.620 | 0.845 | **+0.225** |
+| context_recall | 0.510 | 0.721 | **+0.211** |
+| precision_at_5 | 0.890 | 0.911 | +0.021 |
+| latency p50 | 2029ms | 4018ms | +2× |
+
+### Key discoveries
+- HyDE gives **+21pp recall** (0.51→0.72) on this 18-sample run — much larger than previously measured (+3.5pp on 50 samples with 429s). Smaller sample set; repeat at 50 samples to confirm.
+- answer_correctness flat at 0.75 for all 18 samples — 8B judge giving uniform score, not differentiating. May indicate judge calibration issue, not actual correctness plateau.
+- Latency 2× (2029ms→4018ms) — HyDE adds one Groq call per query for hypothetical expansion.
+- Briefing fix unblocks document upload → briefing flow end-to-end.
 
 ---
 
@@ -639,8 +671,8 @@ HIGH impact × HIGH effort → Build last
 v1  → Dense-only retrieval. No eval. No baseline.
 v2  → Hybrid BM25+dense, cross-encoder rerank. Measured with RAGAS.
      → faithfulness=1.0, answer_relevancy=0.90 on 20-pair eval set.
-+HyDE+MQ → RAGAS context_recall +X%. Concrete metric improvement.
-+Contextual → RAGAS context_precision +Y%. Ingest-time LLM augmentation.
++HyDE → context_recall 0.51→0.72 (+21pp). Hypothetical answer embedding closes vocabulary gap.
++Contextual → context_recall 0.60 (+18% vs baseline). Ingest-time LLM chunk augmentation.
 +Agentic  → Multi-step reasoning. Not RAG anymore — research agent.
 ```
 

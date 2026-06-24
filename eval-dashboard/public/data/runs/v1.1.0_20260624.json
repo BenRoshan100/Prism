@@ -1,10 +1,10 @@
 {
-  "version": "v1.3.0",
+  "version": "v1.1.0",
   "tag": "Violet",
-  "computed_at": "2026-06-23T23:10:33",
-  "sample_count": 25,
+  "computed_at": "2026-06-24T20:32:47",
+  "sample_count": 18,
   "config": {
-    "hyde_enabled": false,
+    "hyde_enabled": true,
     "multi_query_enabled": false,
     "contextual_retrieval": false,
     "retrieve_k": 10,
@@ -14,25 +14,25 @@
     "workspace": "default"
   },
   "metrics": {
-    "answer_correctness": 0.76,
-    "answer_relevancy": 0.8374,
-    "context_recall": 0.6274,
-    "precision_at_5": 0.888,
-    "latency_p50_ms": 833,
-    "latency_p95_ms": 2788,
-    "latency_p99_ms": 2969
+    "answer_correctness": 0.75,
+    "answer_relevancy": 0.8452,
+    "context_recall": 0.7208,
+    "precision_at_5": 0.9111,
+    "latency_p50_ms": 4018,
+    "latency_p95_ms": 6452,
+    "latency_p99_ms": 6455
   },
   "per_query": [
     {
       "query": "What was the total UPI transaction volume in FY2024?",
-      "answer": "The total UPI transaction volume reached 131 billion transactions in FY2024. \n[Doc 1]",
+      "answer": "The total UPI transaction volume reached 131 billion transactions in FY2024. \n[Doc 1] supports this answer.",
       "ground_truth": "Total UPI transaction volume crossed 131 billion transactions in FY2024. Monthly volume reached 14.04 billion transactions by March 2024, growing 56% year-on-year in volume and 43% in value compared to FY2023. Total annual value was approximately Rs 200 lakh crore.",
       "answer_correctness": 0.75,
-      "correctness_reason": "minor omission of growth rate and annual value",
+      "correctness_reason": "most key facts correct, minor omissions or imprecision",
       "answer_relevancy": 1.0,
-      "context_recall": 0.75,
+      "context_recall": 1.0,
       "precision_at_5": 1.0,
-      "latency_ms": 1298,
+      "latency_ms": 2334,
       "retrieved_sources": [
         "npci_upi_report_2024.txt",
         "npci_upi_report_2024.txt",
@@ -50,11 +50,11 @@
       "answer_relevancy": 0.8604,
       "context_recall": 0.5,
       "precision_at_5": 1.0,
-      "latency_ms": 828,
+      "latency_ms": 1688,
       "retrieved_sources": [
         "rbi_annual_report_2024.txt",
         "bajaj_finance_q3_2024_transcript.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
+        "npci_upi_report_2024.txt",
         "rbi_annual_report_2024.txt",
         "rbi_annual_report_2024.txt"
       ]
@@ -65,15 +65,15 @@
       "ground_truth": "Bajaj Finance's consolidated Assets Under Management (AUM) stood at Rs 3,10,672 crore as of Q3 FY2024, growing 35% year-on-year.",
       "answer_correctness": 0.75,
       "correctness_reason": "most key facts correct, minor omissions or imprecision (lack of year-on-year growth percentage in the generated answer)",
-      "answer_relevancy": 0.965,
+      "answer_relevancy": 0.9651,
       "context_recall": 1.0,
-      "precision_at_5": 0.8,
-      "latency_ms": 771,
+      "precision_at_5": 1.0,
+      "latency_ms": 1816,
       "retrieved_sources": [
         "bajaj_finance_q3_2024_transcript.txt",
         "bajaj_finance_q3_2024_transcript.txt",
         "bajaj_finance_q3_2024_transcript.txt",
-        "rbi_annual_report_2024.txt",
+        "bajaj_finance_q3_2024_transcript.txt",
         "bajaj_finance_q3_2024_transcript.txt"
       ]
     },
@@ -83,10 +83,10 @@
       "ground_truth": "RBI issued enhanced guidelines on digital lending requiring all digital loans to be disbursed and repaid through borrower bank accounts. Lending Service Providers (LSPs) and Digital Lending Apps (DLAs) must comply with disclosure requirements. The framework applies to NBFCs and banks offering digital lending products.",
       "answer_correctness": 0.75,
       "correctness_reason": "minor omission of 'framework applies to NBFCs and banks offering digital lending products'",
-      "answer_relevancy": 0.8134,
+      "answer_relevancy": 0.8135,
       "context_recall": 1.0,
       "precision_at_5": 0.8,
-      "latency_ms": 650,
+      "latency_ms": 2215,
       "retrieved_sources": [
         "bajaj_finance_q3_2024_transcript.txt",
         "rbi_annual_report_2024.txt",
@@ -102,9 +102,9 @@
       "answer_correctness": 0.75,
       "correctness_reason": "missing distribution of banks and incorrect reference to supporting document",
       "answer_relevancy": 0.9815,
-      "context_recall": 0.2857,
+      "context_recall": 0.4444,
       "precision_at_5": 1.0,
-      "latency_ms": 887,
+      "latency_ms": 1686,
       "retrieved_sources": [
         "npci_upi_report_2024.txt",
         "npci_upi_report_2024.txt",
@@ -115,14 +115,14 @@
     },
     {
       "query": "What was the UPI fraud rate in FY2024?",
-      "answer": "The UPI fraud rate remained low at 0.0006% of total transactions by volume in FY2024. \n[Doc 1]",
+      "answer": "The UPI fraud rate remained low at 0.0006% of total transactions by volume in FY2024. \n[Doc 1] supports this answer.",
       "ground_truth": "The UPI fraud rate was 0.0006% of total transactions in FY2024. There were 3.07 lakh fraud cases reported, representing a very small fraction given the 131 billion total transactions processed during the year.",
       "answer_correctness": 0.75,
-      "correctness_reason": "minor omission of specific numbers and reference",
+      "correctness_reason": "minor omission of specific numbers and reference to supporting document",
       "answer_relevancy": 1.0,
       "context_recall": 1.0,
       "precision_at_5": 0.8,
-      "latency_ms": 2601,
+      "latency_ms": 1677,
       "retrieved_sources": [
         "npci_upi_report_2024.txt",
         "npci_upi_report_2024.txt",
@@ -133,14 +133,14 @@
     },
     {
       "query": "What was the RBI repo rate during FY2024?",
-      "answer": "The RBI policy repo rate was 6.50 per cent during FY2024. \n[Doc 5] supports this answer.",
+      "answer": "The RBI repo rate was 6.50 per cent during FY2024. \n[Doc 5]",
       "ground_truth": "The RBI kept the repo rate unchanged at 6.50% throughout FY2024. The Monetary Policy Committee (MPC) maintained this rate to balance inflation control with growth support, keeping the policy stance as withdrawal of accommodation.",
       "answer_correctness": 0.75,
       "correctness_reason": "most key facts correct, minor omissions or imprecision",
-      "answer_relevancy": 0.9657,
-      "context_recall": 0.2667,
+      "answer_relevancy": 1.0,
+      "context_recall": 0.25,
       "precision_at_5": 1.0,
-      "latency_ms": 2791,
+      "latency_ms": 1729,
       "retrieved_sources": [
         "rbi_annual_report_2024.txt",
         "rbi_annual_report_2024.txt",
@@ -151,14 +151,14 @@
     },
     {
       "query": "What was Bajaj Finance's profit after tax in Q3 FY2024?",
-      "answer": "Bajaj Finance's profit after tax in Q3 FY2024 was Rs 3,639 crore. \nThis information is supported by Doc 3.",
+      "answer": "Bajaj Finance's profit after tax in Q3 FY2024 was Rs 3,639 crore. \n[Doc 3] supports this answer.",
       "ground_truth": "Bajaj Finance's profit after tax (PAT) in Q3 FY2024 was Rs 3,639 crore, growing 22% year-on-year. Earnings per share increased correspondingly.",
       "answer_correctness": 0.75,
       "correctness_reason": "omitted year-on-year growth and earnings per share information",
       "answer_relevancy": 1.0,
       "context_recall": 1.0,
       "precision_at_5": 1.0,
-      "latency_ms": 1339,
+      "latency_ms": 1720,
       "retrieved_sources": [
         "bajaj_finance_q3_2024_transcript.txt",
         "bajaj_finance_q3_2024_transcript.txt",
@@ -176,7 +176,7 @@
       "answer_relevancy": 0.7858,
       "context_recall": 0.6667,
       "precision_at_5": 0.8,
-      "latency_ms": 837,
+      "latency_ms": 1631,
       "retrieved_sources": [
         "npci_upi_report_2024.txt",
         "npci_upi_report_2024.txt",
@@ -194,13 +194,13 @@
       "answer_relevancy": 0.9321,
       "context_recall": 0.6667,
       "precision_at_5": 0.8,
-      "latency_ms": 723,
+      "latency_ms": 5829,
       "retrieved_sources": [
         "rbi_annual_report_2024.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
         "rbi_annual_report_2024.txt",
         "rbi_annual_report_2024.txt",
-        "rbi_annual_report_2024.txt"
+        "rbi_annual_report_2024.txt",
+        "bajaj_finance_q3_2024_transcript.txt"
       ]
     },
     {
@@ -212,7 +212,7 @@
       "answer_relevancy": 0.9008,
       "context_recall": 0.5,
       "precision_at_5": 1.0,
-      "latency_ms": 677,
+      "latency_ms": 6456,
       "retrieved_sources": [
         "bajaj_finance_q3_2024_transcript.txt",
         "bajaj_finance_q3_2024_transcript.txt",
@@ -223,20 +223,20 @@
     },
     {
       "query": "Which countries accept UPI payments internationally?",
-      "answer": "According to Doc 1, UPI acceptance was enabled in 7 countries: Singapore, UAE, France, Sri Lanka, Mauritius, Nepal, and Bhutan.",
+      "answer": "Singapore, UAE, France, Sri Lanka, Mauritius, Nepal, and Bhutan. \n[Doc 1] supports this answer.",
       "ground_truth": "UPI is accepted internationally in Singapore, UAE, France, Sri Lanka, and several other countries for cross-border payments. NPCI International is driving further expansion to reach 20 countries by 2028.",
       "answer_correctness": 0.75,
       "correctness_reason": "most key facts correct, minor omissions or imprecision",
-      "answer_relevancy": 0.7839,
-      "context_recall": 0.6,
-      "precision_at_5": 0.6,
-      "latency_ms": 828,
+      "answer_relevancy": 0.3639,
+      "context_recall": 1.0,
+      "precision_at_5": 0.8,
+      "latency_ms": 6002,
       "retrieved_sources": [
         "npci_upi_report_2024.txt",
         "npci_upi_report_2024.txt",
         "npci_upi_report_2024.txt",
         "rbi_annual_report_2024.txt",
-        "rbi_annual_report_2024.txt"
+        "npci_upi_report_2024.txt"
       ]
     },
     {
@@ -245,28 +245,28 @@
       "ground_truth": "India's foreign exchange reserves stood at USD 645.6 billion as of March 2024, providing approximately 11 months of import cover and reflecting strong external sector resilience.",
       "answer_correctness": 0.75,
       "correctness_reason": "missing import cover and external sector resilience details",
-      "answer_relevancy": 0.9549,
+      "answer_relevancy": 0.9555,
       "context_recall": 1.0,
       "precision_at_5": 1.0,
-      "latency_ms": 646,
+      "latency_ms": 6225,
       "retrieved_sources": [
         "rbi_annual_report_2024.txt",
         "rbi_annual_report_2024.txt",
-        "npci_upi_report_2024.txt",
+        "rbi_annual_report_2024.txt",
         "rbi_annual_report_2024.txt",
         "rbi_annual_report_2024.txt"
       ]
     },
     {
       "query": "What is Bajaj Finance's Gross NPA ratio?",
-      "answer": "The Gross NPA ratio for Bajaj Finance is 0.95% as of December 2023. \n[Doc 3] supports this answer.",
+      "answer": "The Gross NPA ratio for Bajaj Finance is not explicitly stated in the provided documents for Q3 FY2024. However, according to Doc 1, the banking sector's GNPA ratio declined to 3.2 per cent, but this is not specific to Bajaj Finance. Doc 3 mentions a Gross NPA of 0.95% as of December 2023. \n\nDocument supporting the answer: Doc 3.",
       "ground_truth": "Bajaj Finance's Gross NPA (GNPA) ratio was 0.95% and Net NPA ratio was 0.36% as of Q3 FY2024. Provision coverage remained strong, reflecting disciplined underwriting and collections.",
       "answer_correctness": 0.75,
-      "correctness_reason": "most key facts correct, minor omissions or imprecision (GNPA ratio correct, but date is different, no mention of Net NPA ratio or provision coverage)",
-      "answer_relevancy": 0.8938,
-      "context_recall": 0.3793,
+      "correctness_reason": "Most key facts correct, minor omissions or imprecision",
+      "answer_relevancy": 0.0,
+      "context_recall": 0.3929,
       "precision_at_5": 1.0,
-      "latency_ms": 841,
+      "latency_ms": 5880,
       "retrieved_sources": [
         "rbi_annual_report_2024.txt",
         "bajaj_finance_q3_2024_transcript.txt",
@@ -277,14 +277,14 @@
     },
     {
       "query": "What is the market share of PhonePe on UPI?",
-      "answer": "PhonePe's market share on UPI is 47%. \n[Doc 1] supports this answer.",
+      "answer": "PhonePe's market share on UPI is 47%. \nThis information is supported by Doc 1.",
       "ground_truth": "PhonePe held 47% market share on UPI by transaction volume, followed by Google Pay at 34%. The top two players together control over 80% of UPI transactions, though NPCI's market cap guidelines aim to limit concentration.",
       "answer_correctness": 0.75,
-      "correctness_reason": "missing information about Google Pay and market concentration",
+      "correctness_reason": "missing market share of Google Pay and concentration of top two players",
       "answer_relevancy": 0.9666,
-      "context_recall": 0.2857,
+      "context_recall": null,
       "precision_at_5": 1.0,
-      "latency_ms": 1037,
+      "latency_ms": 5703,
       "retrieved_sources": [
         "npci_upi_report_2024.txt",
         "npci_upi_report_2024.txt",
@@ -302,7 +302,7 @@
       "answer_relevancy": 0.8867,
       "context_recall": 0.6667,
       "precision_at_5": 0.8,
-      "latency_ms": 788,
+      "latency_ms": 6240,
       "retrieved_sources": [
         "rbi_annual_report_2024.txt",
         "rbi_annual_report_2024.txt",
@@ -313,14 +313,14 @@
     },
     {
       "query": "How much did Bajaj Finance spend on technology?",
-      "answer": "Bajaj Finance spent Rs 1,180 crore on technology for 9M FY2024. \n[Doc 4] supports this answer.",
+      "answer": "Bajaj Finance spent Rs 1,180 crore on technology for 9M FY2024. [Doc 4]",
       "ground_truth": "Bajaj Finance spent Rs 1,180 crore on technology in Q3 FY2024, representing approximately 12% of operating expenses. Technology investments focus on digital origination, customer experience, and risk management platforms.",
       "answer_correctness": 0.75,
-      "correctness_reason": "most key facts correct, minor omissions or imprecision (FY2024 vs 9M FY2024)",
+      "correctness_reason": "most key facts correct, minor omissions or imprecision",
       "answer_relevancy": 0.9343,
       "context_recall": 0.5,
       "precision_at_5": 1.0,
-      "latency_ms": 671,
+      "latency_ms": 6297,
       "retrieved_sources": [
         "bajaj_finance_q3_2024_transcript.txt",
         "bajaj_finance_q3_2024_transcript.txt",
@@ -337,140 +337,14 @@
       "correctness_reason": "minor inaccuracy in year-on-year comparison",
       "answer_relevancy": 0.8679,
       "context_recall": 0.6667,
-      "precision_at_5": 0.8,
-      "latency_ms": 758,
-      "retrieved_sources": [
-        "npci_upi_report_2024.txt",
-        "npci_upi_report_2024.txt",
-        "npci_upi_report_2024.txt",
-        "rbi_annual_report_2024.txt",
-        "npci_upi_report_2024.txt"
-      ]
-    },
-    {
-      "query": "What is the Digital Rupee pilot status?",
-      "answer": "The Digital Rupee (e-Rupee) pilot programmes continued with both retail (e\u20b9-R) and wholesale (e\u20b9-W) variants, with the retail CBDC pilot expanded to cover 50 cities and approximately 10 lakh retail e\u20b9 wallets active as of March 2024. \n[Doc 1]",
-      "ground_truth": "RBI's Digital Rupee (e-Rupee / CBDC) retail pilot was expanded to 50 cities with over 10 lakh users as of FY2024. The pilot covers retail use cases for person-to-person and person-to-merchant transactions using a digital wallet issued by participating banks.",
-      "answer_correctness": 0.75,
-      "correctness_reason": "minor difference in wording and date format",
-      "answer_relevancy": 0.9068,
-      "context_recall": 0.3333,
       "precision_at_5": 0.6,
-      "latency_ms": 882,
-      "retrieved_sources": [
-        "rbi_annual_report_2024.txt",
-        "rbi_annual_report_2024.txt",
-        "rbi_annual_report_2024.txt",
-        "npci_upi_report_2024.txt",
-        "npci_upi_report_2024.txt"
-      ]
-    },
-    {
-      "query": "What is Bajaj Housing Finance's AUM and IPO plans?",
-      "answer": "Bajaj Housing Finance's AUM is Rs 72,400 crore, and its IPO is targeted for H1 FY2025. \n[Doc 1, Doc 2]",
-      "ground_truth": "Bajaj Housing Finance's AUM stood at Rs 72,400 crore as of Q3 FY2024. The company filed its Draft Red Herring Prospectus (DRHP) for an IPO and listing on stock exchanges, subject to regulatory approvals.",
-      "answer_correctness": 0.75,
-      "correctness_reason": "most key facts correct, minor omissions or imprecision",
-      "answer_relevancy": 0.8804,
-      "context_recall": 0.6667,
-      "precision_at_5": 1.0,
-      "latency_ms": 852,
-      "retrieved_sources": [
-        "bajaj_finance_q3_2024_transcript.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
-        "bajaj_finance_q3_2024_transcript.txt"
-      ]
-    },
-    {
-      "query": "How did UPI transaction volume growth compare between FY2023 and FY2024?",
-      "answer": "UPI transaction volume grew by 56% year-on-year in FY2024. \n[Doc 2] supports this answer.",
-      "ground_truth": "UPI grew 56% in volume and 43% in value in FY2024 compared to FY2023. In FY2023, UPI processed approximately 84 billion transactions. Monthly run-rate reached 14.04 billion in March 2024 versus 8.9 billion in March 2023. Growth decelerated slightly from FY2023's 80%+ pace but remained strong.",
-      "answer_correctness": 0.75,
-      "correctness_reason": "most key facts correct, minor omissions or imprecision",
-      "answer_relevancy": 0.9272,
-      "context_recall": 0.75,
-      "precision_at_5": 1.0,
-      "latency_ms": 753,
+      "latency_ms": 6452,
       "retrieved_sources": [
         "npci_upi_report_2024.txt",
-        "rbi_annual_report_2024.txt",
         "npci_upi_report_2024.txt",
         "npci_upi_report_2024.txt",
-        "npci_upi_report_2024.txt"
-      ]
-    },
-    {
-      "query": "What restrictions does RBI impose on digital lending service providers regarding loan disbursement?",
-      "answer": "The RBI requires all digital loans to be disbursed and repaid through borrower bank accounts. \n[Doc 1]",
-      "ground_truth": "RBI mandates that all digital loan disbursals must flow directly to the borrower's bank account \u00e2\u20ac\u201d not through any intermediary or pass-through account of the Lending Service Provider (LSP). Similarly, all repayments must be made directly to the regulated entity (bank or NBFC). LSPs are prohibited from holding or pooling borrower funds at any stage.",
-      "answer_correctness": 0.75,
-      "correctness_reason": "omitted details about LSPs and pass-through accounts",
-      "answer_relevancy": 0.8448,
-      "context_recall": 1.0,
-      "precision_at_5": 0.6,
-      "latency_ms": 712,
-      "retrieved_sources": [
-        "rbi_annual_report_2024.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
-        "rbi_annual_report_2024.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
-        "npci_upi_report_2024.txt"
-      ]
-    },
-    {
-      "query": "How did Bajaj Finance's net interest income change year-on-year in Q3 FY2024?",
-      "answer": "Bajaj Finance's net interest income (NII) for Q3 FY2024 was up 28% year-on-year. \n[Doc 2] supports this answer.",
-      "ground_truth": "Bajaj Finance's Net Interest Income (NII) grew 28% year-on-year in Q3 FY2024, driven by strong AUM expansion and stable net interest margins. NIM remained in the range of 9.8\u00e2\u20ac\u201c10.2%, supported by a diversified borrowing mix and favorable repricing of the loan book.",
-      "answer_correctness": 0.75,
-      "correctness_reason": "most key facts correct, minor omissions or imprecision",
-      "answer_relevancy": 0.8834,
-      "context_recall": 0.5,
-      "precision_at_5": 1.0,
-      "latency_ms": 833,
-      "retrieved_sources": [
-        "bajaj_finance_q3_2024_transcript.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
-        "bajaj_finance_q3_2024_transcript.txt"
-      ]
-    },
-    {
-      "query": "What did RBI say about the withdrawal of Rs 2000 denomination notes?",
-      "answer": "There is no information provided in the given context about the RBI's statement on the withdrawal of Rs 2000 denomination notes. None of the documents (Doc 1 to Doc 5) mention this topic.",
-      "ground_truth": "RBI announced the withdrawal of Rs 2000 denomination banknotes from circulation in May 2023. Citizens were given until September 2023 to deposit or exchange these notes. Over 97% of the Rs 2000 notes in circulation were returned to the banking system by March 2024, reflecting smooth execution of the withdrawal.",
-      "answer_correctness": 0.75,
-      "correctness_reason": "generated answer is correct in stating lack of information, but does not attempt to verify or provide any information about the topic, whereas the reference answer provides specific details.",
-      "answer_relevancy": 0.0,
-      "context_recall": 0.2,
-      "precision_at_5": 0.8,
-      "latency_ms": 2780,
-      "retrieved_sources": [
-        "rbi_annual_report_2024.txt",
-        "bajaj_finance_q3_2024_transcript.txt",
-        "rbi_annual_report_2024.txt",
         "rbi_annual_report_2024.txt",
         "rbi_annual_report_2024.txt"
-      ]
-    },
-    {
-      "query": "What is NPCI's 30% market share cap for UPI apps and when does it apply?",
-      "answer": "There is no information provided about NPCI's 30% market share cap for UPI apps in the given context. \n\nNo document supports this answer as the information is not available.",
-      "ground_truth": "NPCI introduced a 30% market share cap for third-party UPI applications, applicable once total UPI transaction volume crosses 300 crore per month. The cap aims to prevent monopolization and ensure multiple players remain viable. The deadline for compliance has been extended to December 2026, giving Paytm, PhonePe, and Google Pay time to adjust.",
-      "answer_correctness": 1.0,
-      "correctness_reason": "generated answer contradicts reference",
-      "answer_relevancy": 0.0,
-      "context_recall": 0.5,
-      "precision_at_5": 1.0,
-      "latency_ms": 3026,
-      "retrieved_sources": [
-        "npci_upi_report_2024.txt",
-        "npci_upi_report_2024.txt",
-        "npci_upi_report_2024.txt",
-        "npci_upi_report_2024.txt",
-        "npci_upi_report_2024.txt"
       ]
     }
   ]

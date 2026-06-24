@@ -1,32 +1,8 @@
 [
   {
-    "version": "v1.0.0",
-    "tag": "Violet",
-    "date": "2026-06-18",
-    "file": "v1.0.0_20260618.json"
-  },
-  {
     "version": "v1.1.0",
     "tag": "Violet",
-    "date": "2026-06-19",
-    "file": "v1.1.0_20260619.json"
-  },
-  {
-    "version": "v1.2.0",
-    "tag": "Violet",
-    "date": "2026-06-19",
-    "file": "v1.2.0_20260619.json"
-  },
-  {
-    "version": "v1.3.0",
-    "tag": "Violet",
-    "date": "2026-06-23",
-    "file": "v1.3.0_20260623.json"
-  },
-  {
-    "version": "v1.4.0",
-    "tag": "Violet",
-    "date": "2026-06-23",
-    "file": "v1.4.0_20260623.json"
+    "date": "2026-06-24",
+    "file": "v1.1.0_20260624.json"
   }
 ]

@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 import re
@@ -47,7 +48,13 @@ def generate_briefing(doc_name: str, text_sample: str) -> dict:
         if not match:
             raise ValueError(f"No JSON object in LLM response: {raw[:100]}")
         cleaned = re.sub(r",\s*([}\]])", r"\1", match.group())  # strip trailing commas
-        data = json.loads(cleaned)
+        # Strip control characters that break json.loads
+        cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", cleaned)
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # LLM sometimes returns Python dict syntax with single quotes
+            data = ast.literal_eval(cleaned)
         return {
             "doc_name": doc_name,
             "summary": data.get("summary", [])[:5],
