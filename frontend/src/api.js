@@ -1,7 +1,9 @@
 import axios from "axios";
 
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api",
+  baseURL: API_BASE,
 });
 
 export async function sendMessage(question, webSearch = false, workspaceId = "default") {
@@ -70,5 +72,55 @@ export async function deleteDocument(filename, workspaceId = "default") {
     `/documents/${encodeURIComponent(filename)}?workspace=${encodeURIComponent(workspaceId)}`
   );
   return data;
+}
+
+export async function streamChat(question, workspaceId = "default", { onToken, onDone, onError }) {
+  let response;
+  try {
+    response = await fetch(
+      `${API_BASE}/chat?workspace=${encodeURIComponent(workspaceId)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      }
+    );
+  } catch (err) {
+    onError(err.message || "Network error");
+    return;
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    onError(text || `HTTP ${response.status}`);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? ""; // keep incomplete line
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === "token") onToken(event.content);
+          else if (event.type === "done") onDone(event);
+          else if (event.type === "error") onError(event.message ?? "Unknown error");
+        } catch {
+          // malformed SSE line — skip
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
