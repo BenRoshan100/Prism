@@ -35,42 +35,44 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
     ]);
     setLoading(true);
 
-    await streamChat(question, currentWorkspace, {
-      onToken: (token) => {
-        tokenBuffer.push(token);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === msgId ? { ...m, content: m.content + token } : m
-          )
-        );
-      },
-      onDone: (event) => {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === msgId
-              ? {
-                  ...m,
-                  sources: event.sources ?? [],
-                  retrieval_method: event.retrieval_method,
-                  loading: false,
-                }
-              : m
-          )
-        );
-        onEvalEntry?.({ query: question, answer: tokenBuffer.join("") });
-      },
-      onError: (message) => {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === msgId
-              ? { ...m, content: `Error: ${message}`, loading: false }
-              : m
-          )
-        );
-      },
-    });
-
-    setLoading(false);
+    try {
+      await streamChat(question, currentWorkspace, {
+        onToken: (token) => {
+          tokenBuffer.push(token);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msgId ? { ...m, content: m.content + token } : m
+            )
+          );
+        },
+        onDone: (event) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msgId
+                ? {
+                    ...m,
+                    sources: event.sources ?? [],
+                    retrieval_method: event.retrieval_method,
+                    loading: false,
+                  }
+                : m
+            )
+          );
+          onEvalEntry?.({ query: question, answer: tokenBuffer.join("") });
+        },
+        onError: (message) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msgId
+                ? { ...m, content: `Error: ${message}`, loading: false }
+                : m
+            )
+          );
+        },
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
