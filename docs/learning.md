@@ -22,25 +22,14 @@ Every concept in this file maps to a specific stage in Prism's request lifecycle
 │              Where parent chunks live (RAM only, dies on        │
 │              restart). ChromaDB stores child vectors on disk.   │
 │                                                                 │
-│  Concept 10  Idempotent Ingestion (MD5)                         │
-│              Re-uploading same file won't create duplicate       │
-│              chunks. MD5(source+page+text) = chunk ID.          │
-│                                                                 │
 │  Concept 14  LLM at Ingest Time (Briefing)                      │
 │              After ingest, LLM auto-generates 5-bullet summary  │
 │              + 3 suggested questions. Runs once, not per query. │
 │                                                                 │
-│  Concept 16  Multi-Workspace Isolation                          │
-│              Each workspace = one ChromaDB collection. Upload   │
-│              goes into selected workspace only.                 │
-│                                                                 │
-│  Concept 18  FastAPI BackgroundTasks                            │
-│              Two-phase upload: sync embed first (<3s queryable) │
-│              → background contextual replacement (~30–60s).     │
-│                                                                 │
-│  Concept 19  asyncio.Semaphore for rate limiting                │
-│              Cap parallel Groq calls at 3 → 3000 TPM burst vs  │
-│              6000 TPM limit. Smart 429 retry parses wait time.  │
+│  Concept 21  Contextual Retrieval                               │
+│              Prepend 2-sentence situating context to each chunk │
+│              before embedding. Fixes decontextualized chunks.   │
+│              Measured: +18% recall (0.51→0.60), +6.6pp P@5.    │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -53,14 +42,13 @@ Every concept in this file maps to a specific stage in Prism's request lifecycle
 │  Concept 17  Multi-Query Retrieval                              │
 │              LLM generates 3 phrasings of query → retrieve for │
 │              each → pool + deduplicate → RRF → rerank.          │
-│              Fixes low recall caused by single-phrasing misses. │
-│              (toggle: multi_query_enabled in config.yaml)       │
+│              Widens candidate pool. ON by default.              │
 │                                                                 │
 │  Concept 7   HyDE                                               │
 │              LLM generates fake answer → embed fake answer      │
 │              instead of query → closes question/answer vector   │
 │              space gap → higher context recall.                 │
-│              (toggle: hyde_enabled in config.yaml)              │
+│              Measured: +21pp recall (0.51→0.72). ON by default. │
 │                                                                 │
 │  Concept 4   BM25Okapi                                          │
 │              Sparse keyword retrieval. Catches exact terms       │
@@ -102,23 +90,6 @@ Every concept in this file maps to a specific stage in Prism's request lifecycle
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  SERVER INFRASTRUCTURE (runs across all stages above)           │
-│                                                                 │
-│  Concept 6   Singleton ML Model Pattern                         │
-│              BM25, CrossEncoder, vectorstore, retriever all     │
-│              cached at module level. One load per process.      │
-│              Without this: OOM after 2–3 queries on Render.     │
-│                                                                 │
-│  Concept 13  Python GC + ML Object Retention                    │
-│              LangChain circular refs prevent auto-release.      │
-│              gc.collect() called after every chat request.      │
-│                                                                 │
-│  Concept 16  Multi-Workspace Isolation                          │
-│              Every request carries workspace_id. Retriever,     │
-│              BM25 index, vectorstore all keyed per workspace.   │
-│              React key={workspaceId} remounts chat on switch.   │
-└─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
@@ -476,73 +447,6 @@ No condensation step. Web context reaches the LLM guaranteed.
 
 ---
 
-## 6. Singleton ML Model Pattern — OOM Prevention in Production
-
-### The Problem
-
-Every time a user sent a chat message in Prism, this happened:
-
-```python
-# routes/chat.py (WRONG — old version)
-def chat(request):
-    collection = chroma_client.get_or_create_collection(workspace_id)  # new Chroma object
-    vectorstore = Chroma(collection=collection, ...)                    # new VectorStore
-    retriever = HybridRetriever(vectorstore=vectorstore, ...)           # new Retriever
-    return retriever.invoke(question)
-```
-
-Three new objects per request. Each Chroma instance reloads embeddings from disk into RAM. After 2–3 queries → 512MB Render limit hit → OOM crash.
-
-### The Fix: Module-Level Cache
-
-```python
-# retriever.py — two separate caches, not one tuple dict
-_vs_cache: dict[str, Chroma] = {}           # workspace_id → Chroma vectorstore
-_retriever_cache: dict[str, HybridRetriever] = {}  # workspace_id → retriever
-
-def get_vectorstore(collection_name: str) -> Chroma:
-    if collection_name not in _vs_cache:
-        _vs_cache[collection_name] = Chroma(
-            collection_name=collection_name,
-            embedding_function=_get_embeddings(),
-            persist_directory="./chroma_db",
-        )
-    return _vs_cache[collection_name]
-
-def get_retriever(workspace_id: str) -> HybridRetriever:
-    if workspace_id not in _retriever_cache:
-        vectorstore = get_vectorstore(workspace_id)
-        _retriever_cache[workspace_id] = HybridRetriever(
-            vectorstore=vectorstore, ...
-        )
-    return _retriever_cache[workspace_id]
-
-def invalidate_cache(workspace_id: str) -> None:
-    _vs_cache.pop(workspace_id, None)       # drop vectorstore
-    _retriever_cache.pop(workspace_id, None)  # drop retriever
-    # called from upload.py after ingest so next request rebuilds cleanly
-```
-
-**Memory behaviour:**
-
-| Approach | RAM on 3rd request |
-| --- | --- |
-| New retriever per request | 3× embedding reload = OOM |
-| Module-level cache | 1× load, reused = stable |
-
-### Why Module-Level (Not `app.state`)
-
-`app.state` (FastAPI) is also fine for singletons, but module-level has one advantage: importable from anywhere without passing the app object. The BM25 index needs to be rebuilt from `upload.py` — importing `from retriever import invalidate_cache` is cleaner than threading `app` through function signatures.
-
-**Same pattern used for:**
-- `bm25_index.py` — BM25Okapi singleton
-- `reranker.py` — CrossEncoder singleton  
-- `retriever.py` — per-workspace (vectorstore, retriever) cache
-
-**General rule:** Any ML model or index that takes >100ms to load → make it a singleton. Pay the cost once at startup, not on every request.
-
----
-
 ## 7. HyDE — Hypothetical Document Embeddings
 
 ### The Problem with Embedding a Question
@@ -616,9 +520,9 @@ def _get_relevant_documents(self, query: str):
     return self.rrf_and_rerank(dense_docs, sparse_docs)
 ```
 
-**Off by default** (`config.yaml` `hyde_enabled: false`) — adds one Groq call per query (~200ms). Enable → run eval → measure context_recall delta → decide.
+**ON by default** (`config.yaml` `hyde_enabled: true`) — adds one Groq call per query (~200ms). Latency cost accepted.
 
-**Expected lift:** Higher context_recall (currently 0.51 in Prism v1.0.0). HyDE specifically helps recall — it finds chunks that keyword/direct-embed matching misses.
+**Measured lift (v1.1.0, 18 samples):** context_recall 0.51 → 0.72 (+21pp). Latency 2029ms → 4018ms p50 (2×). HyDE specifically helps recall — it finds chunks that keyword/direct-embed matching misses.
 
 ---
 
@@ -740,61 +644,6 @@ Why did it miss them? `limit_circular_2023` might use different phrasing: *"The 
 Multi-Query generates: `"UPI merchant payment ceiling"`, `"RBI merchant collection limit"`, `"PSP merchant UPI cap"` → retrieves from all three → pools candidates → recall rises.
 
 ---
-
----
-
-## 10. Idempotent Ingestion — Content-Addressed Deduplication
-
-### The Problem Without It
-
-User uploads `rbi_circular_2024.pdf`. Server ingests it — 143 chunks in ChromaDB. User uploads the same file again (maybe they weren't sure it worked). Without deduplication: 286 chunks. Same content stored twice. Retrieval returns duplicate chunks → LLM sees `[1]` and `[3]` with identical text → wastes context window → degrades answer quality.
-
-### The Fix: MD5 Content Hash as Chunk ID
-
-```python
-# ingest.py
-def _chunk_id(chunk) -> str:
-    source = chunk.metadata.get("source", "")   # filename
-    page = str(chunk.metadata.get("page", ""))  # page number
-    content_hash = hashlib.md5(
-        (source + page + chunk.page_content).encode()
-    ).hexdigest()
-    return content_hash  # e.g. "a3f9c2d1..."
-```
-
-Same file + same page + same text → same MD5 → same ID. ChromaDB uses IDs as primary keys. Upsert with existing ID = no-op.
-
-```python
-def embed_and_store(chunks, collection_name):
-    ids = [_chunk_id(chunk) for chunk in chunks]
-    
-    # Check what already exists
-    existing_ids = set(vectorstore.get()["ids"])
-    
-    # Only embed chunks not already in ChromaDB
-    new_indices = [i for i, doc_id in enumerate(ids) if doc_id not in existing_ids]
-    
-    if new_indices:
-        vectorstore.add_texts(
-            texts=[texts[i] for i in new_indices],
-            ids=[ids[i] for i in new_indices]
-        )
-        # "Added 143 new chunks (skipped 0 existing)"
-    else:
-        pass  # "All chunks already exist, skipping"
-```
-
-**Result:** Upload same PDF 10 times → still 143 chunks. ChromaDB stays clean.
-
-### Why MD5 (Not Sequential IDs)
-
-| ID scheme | Problem |
-| --- | --- |
-| Auto-increment (1, 2, 3…) | Same chunk uploaded twice gets IDs 1 and 144 — no way to detect duplicate |
-| Random UUID | Same chunk → different UUID every time → duplicates pile up |
-| MD5(source + page + text) | Same chunk → same ID → ChromaDB rejects duplicate on upsert |
-
-This is the **content-addressed storage** pattern — same content always maps to same address (hash). Git uses the same idea for blobs.
 
 ---
 
@@ -937,62 +786,6 @@ memory = ConversationBufferWindowMemory(
 ```
 
 Without `output_key="answer"`: LangChain tries to infer the output key, sees multiple candidates, raises `ValueError: Multiple keys returned`. This was a real bug hit during Prism development — subtle because the chain runs fine; the crash happens on the `save_context` call after.
-
----
-
-## 13. Python GC + Why ML Objects Don't Auto-Release
-
-### The Problem on Render 512MB
-
-Render free tier: 512MB RAM. Prism's base memory after startup:
-- CrossEncoder (TinyBERT): ~17MB
-- ChromaDB Chroma object: ~50MB
-- LLM chain (Groq client + LangChain objects): ~150MB
-- Python runtime: ~50MB
-
-Total: ~267MB. Headroom: ~245MB.
-
-A web search query adds:
-- Tavily content: ~9KB (small, fine)
-- `condense_question()` LLM call: creates new ChatGroq messages + response objects in memory
-- `run_query_with_web()` LLM call: same
-- String concatenation of context (~5KB of chunk text)
-
-Peak usage during a web query: ~490MB. Close to limit.
-
-After the request completes: Python's reference count for those objects drops to 0. *Should* be released. **Isn't.**
-
-### Why Python Doesn't Auto-Release
-
-Python uses **reference counting** + **cyclic garbage collector**. But:
-
-1. **LangChain objects have circular references.** `chain` → `memory` → `chain` (memory holds a reference to the chain's output_key config). Cyclic references aren't freed by reference counting alone — only the cyclic GC finds them.
-
-2. **Python's cyclic GC runs on a schedule** (every N allocations, not after every request). High-frequency server = GC may not run between requests.
-
-3. **Result:** Objects from request N are still in memory when request N+1 starts. Near 512MB ceiling, request N+1 tips over.
-
-### The Fix: Explicit `gc.collect()` After Each Request
-
-```python
-# routes/chat.py
-import gc
-
-@router.post("/chat")
-async def chat(request, body):
-    # ... run query ...
-    result = run_query_with_web(chain, retriever, memory, question, web_sources)
-    
-    gc.collect()  # Force cyclic GC — finds and frees circular ref objects immediately
-    
-    return result
-```
-
-`gc.collect()` runs Python's cyclic garbage collector immediately, freeing objects that reference counting missed. Memory drops back to ~267MB before next request arrives.
-
-**Trade-off:** ~1-2ms per request. Negligible vs query latency (~2s). No choice on 512MB.
-
-**General rule:** Any ML server running on constrained RAM should call `gc.collect()` after each request that creates large intermediate objects (LLM responses, embeddings, string buffers).
 
 ---
 
@@ -1332,7 +1125,16 @@ p99 = int(np.percentile(latencies, 99))   # 99th percentile
 - HyDE expansion (adds one extra Groq call ~200ms)
 - Python GC (`gc.collect()` after response)
 
-**Prism v1.0.0 result:** `p50=2029ms, p95=TBD, p99=TBD` — median 2s. Render free vCPU is the bottleneck (TinyBERT reranker runs on CPU). Groq inference itself is ~300ms; the 1.7s remainder is retrieval on cold hardware.
+**Prism results across versions:**
+
+| Version | Stack | p50 | p95 | p99 |
+| --- | --- | --- | --- | --- |
+| v1.0.0 | baseline | 2029ms | — | — |
+| v1.1.0 | HyDE | 4018ms | 6452ms | 6455ms |
+| v1.2.0 | HyDE+MQ | 1812ms | 6136ms | 6744ms |
+| v1.3.0 | HyDE+MQ+CTX | 2610ms | 6720ms | 6959ms |
+
+HyDE adds one Groq call per query → p50 2×. Contextual chunks are longer → LLM processes more tokens → higher p50 vs baseline. Wide p95/p99 gap = occasional Groq congestion spikes, not retrieval.
 
 **Production benchmarks for context:**
 
@@ -1371,105 +1173,21 @@ High latency p99 >> p50:
 → Monitor, add timeout handling
 ```
 
-**Prism v1.0.0 Violet diagnostic:**
+**Metric evolution across Prism versions:**
 
 ```
-correctness=0.82  ← good but room to grow
-relevancy=0.62    ← low → verbose LLM responses (prompt fix)
-recall=0.51       ← low → missing chunks (Multi-Query fix)
-P@5=0.89          ← high → retrieved chunks are correct when found
-p50=2029ms        ← expected on Render free CPU
+              v1.0.0   v1.1.0   v1.2.0   v1.3.0
+              (base)   (HyDE)   (HyDE+MQ)(+CTX)
+correctness:  0.82     0.75     0.77     0.78
+relevancy:    0.62     0.845    0.890    0.799
+recall:       0.51     0.721    0.645    0.768   ← primary target
+P@5:          0.89     0.911    0.904    0.984
+p50:          2029ms   4018ms   1812ms   2610ms
 
-Verdict: retrieval recall is the primary bottleneck.
-Fix recall → more relevant context → higher correctness → all metrics improve.
+Verdict (v1.0.0): recall is the primary bottleneck.
+Fix: HyDE (+21pp recall), Multi-Query (wider pool), Contextual Retrieval (+18% recall).
+Best production stack: v1.3.0 — HyDE + Multi-Query + Contextual Retrieval.
 ```
-
----
-
-## 16. Multi-Workspace Isolation — One Collection Per Context
-
-### The Problem with a Single Global Collection
-
-Early Prism had one ChromaDB collection for all documents. Load an RBI circular and an earnings transcript → both in the same retrieval pool. Query `"What were NPCI's FY24 revenues?"` → retriever pulls from both → RBI policy chunks contaminate the answer → hallucination risk.
-
-No way to scope a conversation to one document set without re-ingesting everything.
-
-### The Fix: One ChromaDB Collection Per Workspace
-
-```
-Workspace "rbi-policy"   → ChromaDB collection: "rbi-policy"   → only RBI docs
-Workspace "kotak-q4"     → ChromaDB collection: "kotak-q4"     → only earnings docs
-Workspace "default"      → ChromaDB collection: "default"       → general docs
-```
-
-Every API request carries `workspace_id`:
-
-```python
-# Frontend sends workspace_id on every request
-POST /api/chat?workspace=rbi-policy       { "question": "..." }
-POST /api/upload?workspace=kotak-q4       (file upload)
-GET  /api/documents?workspace=default
-```
-
-Backend resolves the correct collection before retrieval:
-
-```python
-# routes/chat.py
-retriever = get_retriever(workspace_id)   # returns cached retriever for that collection
-result = run_query_with_web(chain, retriever, memory, question, web_sources)
-```
-
-### The ChromaDB Version Compatibility Bug
-
-`client.list_collections()` changed return type between ChromaDB versions:
-
-```python
-# chromadb < 0.5.4 returns:  list[Collection]  (objects with .name attribute)
-# chromadb ≥ 0.5.4 returns:  list[str]         (names directly)
-
-# Wrong — crashes on one version or the other:
-names = [c.name for c in client.list_collections()]
-
-# Right — isinstance check handles both:
-collections = client.list_collections()
-names = [c if isinstance(c, str) else c.name for c in collections]
-```
-
-Pinning library versions prevents this, but the guard is worth knowing — breaking API changes inside minor versions are common in fast-moving ML libraries.
-
-### Frontend: Remount on Workspace Switch
-
-React component state persists across renders unless the component unmounts. Switching workspace while ChatArea holds 20 messages → messages from workspace A appear in workspace B's view.
-
-Fix: `key` prop forces full remount when workspace changes:
-
-```jsx
-// App.jsx
-<ChatArea
-  key={workspaceId}       // ← when workspaceId changes, React destroys + recreates component
-  workspaceId={workspaceId}
-  ...
-/>
-```
-
-`key` prop is React's escape hatch for "this is a genuinely new instance, not an update". Any state inside ChatArea (messages, scroll position, loading flags) resets to initial on workspace switch.
-
-### BM25 + Retriever Cache Per Workspace
-
-Each workspace needs its own BM25 index (built from that collection's chunks) and its own retriever singleton:
-
-```
-_indexes: dict[str, BM25Index] = {}         # one BM25 per workspace
-_vs_cache: dict[str, Chroma] = {}           # one vectorstore per workspace
-_retriever_cache: dict[str, HybridRetriever] = {}  # one retriever per workspace
-```
-
-After upload to workspace "rbi-policy":
-1. `invalidate_cache("rbi-policy")` — drop stale vectorstore + retriever
-2. `build_from_vectorstore(vectorstore, workspace_id="rbi-policy")` — rebuild BM25 from new chunks
-3. `get_retriever("rbi-policy")` — rebuild retriever with fresh vectorstore
-
-Other workspaces untouched. Isolation is complete.
 
 ---
 
@@ -1552,11 +1270,11 @@ def _get_relevant_documents(self, query, ...):
     reranked = rerank(query, fused[:retrieve_k], top_k=rerank_k)  # reranker uses original query
 ```
 
-**Off by default** (`config.yaml` `multi_query_enabled: false`) — adds one Groq call per query (~200ms). Enable → run eval (`scripts/run_eval_versioned.py --version v1.1.0 --tag "Indigo"`) → measure context_recall delta vs 0.51.
+**ON by default** (`config.yaml` `multi_query_enabled: true`) — adds one Groq call per query (~200ms).
 
-**Expected lift:** context_recall 0.51 → measurably higher. No change expected to P@5 (already 0.89) — recall improvement without precision degradation.
+**Measured result (v1.2.0, 25 samples, HyDE+MQ):** recall=0.645, P@5=0.904. Multi-Query alone provided smaller-than-expected recall lift. Root cause: query-side reformulation cannot fix decontextualized chunk embeddings — chunks with weak vectors rank low regardless of how the query is phrased. The larger recall gain came from Contextual Retrieval (Concept 21), which fixes chunk quality at ingest time.
 
-**Cost:** 1 extra Groq call + 3× retrieval calls (fast, in-memory) + 3× BM25 (negligible). Parallelisable with `asyncio.gather` if latency becomes a concern.
+**Cost:** 1 extra Groq call + 3× retrieval calls (fast, in-memory) + 3× BM25 (negligible).
 
 **Reranker still uses original query** — not the phrasings. The phrasings widen the candidate pool; the reranker judges relevance against what the user actually asked.
 
@@ -1573,150 +1291,23 @@ def _get_relevant_documents(self, query, ...):
 | RRF | Merging dense + sparse rankings (scale-agnostic) | Post-retrieval fusion |
 | Cross-Encoder | Accurate joint query-doc relevance scoring | Final reranking step |
 | Chain condensation trap | Why LangChain strips web context silently | Web query bypass in chain.py |
-| Singleton ML pattern | OOM prevention — one model load per process | BM25, reranker, retriever cache |
-| HyDE | Closes question-answer vector space gap | Dense retrieval (toggle: hyde_enabled) |
+| HyDE | Closes question-answer vector space gap; +21pp recall | Dense retrieval (hyde_enabled: true) |
 | Faithfulness is circular | Why eval metrics designed alongside corpus lie | answer_correctness chosen as primary |
 | P@5 + Recall diagnostic pair | Identifies whether retrieval pool is narrow or noisy | v1.0.0 Violet: P=0.89, R=0.51 |
-| Idempotent ingestion (MD5) | Re-uploading same doc doesn't duplicate chunks | ingest.py `_chunk_id()` |
 | RecursiveCharacterTextSplitter | Splits at paragraph/line/word/char in priority order | ingest.py chunking |
 | ConversationBufferWindowMemory | Sliding k-window of chat history + output_key trap | memory.py, used in chain |
-| gc.collect() for ML servers | Cyclic refs prevent Python auto-release; explicit GC needed | routes/chat.py post-request |
 | LLM at ingest time | Briefing pattern — run LLM once per doc, not per query | briefing.py on upload |
+| Contextual Retrieval | Fix decontextualized chunks at ingest; +18% recall | `contextualize_chunks_async()` in ingest.py |
 | Answer Correctness | LLM judge 1–5 vs ground truth, normalized → 0–1 | Primary metric, independent of retrieved chunks |
 | Answer Relevancy | Reverse-question cosine similarity — penalizes verbose LLM | RAGAS, no ground truth needed |
 | Context Recall | GT sentences attributed to retrieved chunks ÷ total | RAGAS, measures retrieval completeness |
 | Precision@5 | Relevant chunks in top-5 ÷ 5, source + keyword match | Custom deterministic, no LLM call |
 | Latency p50/p95/p99 | Percentile timing: median / worst-normal / absolute-worst | numpy.percentile over per-query ms measurements |
-| Multi-workspace isolation | One ChromaDB collection per workspace; key prop remounts React | workspaces.py + _vs_cache + _retriever_cache + key={workspaceId} |
-| Multi-Query Retrieval | Wider candidate pool → higher context_recall; dedup by best rank | retriever.py `_multi_query_expand()` (toggle: multi_query_enabled) |
-| FastAPI BackgroundTasks | Non-blocking background work after response sent | Two-phase contextual upload in routes/upload.py |
-| asyncio.Semaphore for rate limits | Cap parallel API calls to stay under TPM ceiling | `contextualize_chunks_async()` with Semaphore(3) |
+| Multi-Query Retrieval | Wider candidate pool; best rank dedup before RRF | retriever.py `_multi_query_expand()` (multi_query_enabled: true) |
+| Semantic Chunking Tradeoff | Recall vs precision when eval is fixed-chunk-aligned | v1.4.0 ablation: +9.3pp recall, −27.3pp P@5, 5× latency |
 
 ---
 
-## 18. FastAPI BackgroundTasks — Non-Blocking Post-Response Work
-
-### The Problem
-
-Contextual retrieval requires one Groq LLM call per chunk. 30 chunks × 1 call = 30 serial API calls = ~40s. If upload waits for all of them, user sees a frozen UI for 40s before getting any response.
-
-### The Pattern
-
-```
-Request → sync work (fast) → return response → background work (slow, after response sent)
-```
-
-FastAPI `BackgroundTasks` runs registered functions **after** the response is returned to the client. The client is unblocked immediately; the server continues the slow work in the background.
-
-```python
-from fastapi import BackgroundTasks
-
-@router.post("/upload")
-async def upload_files(background_tasks: BackgroundTasks, ...):
-    # Phase 1 — sync, fast (<3s)
-    chunks = chunk_documents(documents)
-    embed_and_store(chunks, workspace)      # Euron API, sequential
-    _rebuild_chain(app, workspace)          # user can query now
-
-    # Phase 2 — async, slow (~30–60s, after response)
-    background_tasks.add_task(
-        _contextual_refresh_bg,             # async function
-        app, documents, chunks, workspace, ...
-    )
-
-    return {"status": "ingested"}           # returned before bg starts
-```
-
-### What `_contextual_refresh_bg` does
-
-1. Deep-copies chunks (so original chunks not mutated)
-2. Calls `contextualize_chunks_async()` — parallel Groq calls with Semaphore
-3. Deletes old (non-contextual) chunk IDs from ChromaDB
-4. Embeds contextual chunks via Euron API
-5. Rebuilds chain
-
-### Trade-off
-
-| Approach | Upload latency | Chunk quality on first query |
-|----------|---------------|------------------------------|
-| Sync contextual | 40s+ | Contextual from start |
-| BackgroundTask | <3s | Non-contextual for ~30–60s, then contextual |
-| No contextual | <3s | Non-contextual always |
-
-First-query window with non-contextual chunks is acceptable at demo scale — recall difference is measurable on 50-pair eval, not user-perceptible on single queries.
-
-### When BackgroundTasks is wrong
-
-- Long background work that must complete before next request (chain rebuilds mid-query)
-- Work that must survive server restart (BackgroundTask lives in process — if Render cold-starts between upload and background completion, the task is lost)
-- Fix: use a task queue (Celery, ARQ) for durable background work
-
----
-
-## 19. asyncio.Semaphore — Rate-Limiting Parallel API Calls
-
-### The Problem
-
-`asyncio.gather()` launches ALL coroutines at once. With 30 chunks and 30 parallel Groq calls, you get a 30k token burst against a 6000 TPM (tokens per minute) rate limit → instant 429 storm.
-
-Naive solution (sequential for loop) is safe but slow: 30 × 1.5s = 45s.
-
-### The Fix — Semaphore
-
-A `Semaphore(N)` is a counter initialized to N. `async with sem:` decrements it; releases on exit. When counter = 0, any new `async with sem:` blocks until another coroutine exits.
-
-Effect: at most N coroutines execute the guarded block simultaneously.
-
-```python
-sem = asyncio.Semaphore(3)          # max 3 concurrent Groq calls
-
-async def _contextualize_one(sem, llm, chunk, ...):
-    async with sem:                 # blocks if 3 already running
-        response = await llm.ainvoke(...)
-        chunk.page_content = f"{response.content} {chunk.page_content}"
-
-await asyncio.gather(*[
-    _contextualize_one(sem, llm, chunk, ...)
-    for chunk in chunks
-])
-```
-
-### TPM math for Prism
-
-- Each contextualization prompt: ~1000 tokens (doc snippet + chunk + instruction)
-- `max_concurrent=3` → max 3 × 1000 = 3000 tokens in flight at once
-- Groq free tier: `llama-3.1-8b-instant` → 6000 TPM limit
-- 3000 TPM burst = 50% of limit → safe headroom
-
-`max_concurrent=20` was the bug: 20 × 1000 = 20k token burst → 429 on every batch.
-
-### Smart 429 retry
-
-Groq 429 error messages include the suggested wait time:
-`"Rate limit exceeded. Please try again in 10.5s."`
-
-Parse this instead of using hardcoded sleep:
-
-```python
-except Exception as e:
-    wait = 12.0                                   # default fallback
-    if "try again in" in str(e):
-        m = re.search(r"try again in ([\d.]+)s", str(e))
-        if m:
-            wait = float(m.group(1)) + 1.0        # suggested + 1s buffer
-    await asyncio.sleep(wait)
-```
-
-Hardcoded 2s retry was too short — Groq's rate limit resets in 10–60s windows depending on model and tier.
-
-### Semaphore vs other approaches
-
-| Approach | Speed | Safety | Complexity |
-|----------|-------|--------|-----------|
-| Sequential loop | Slowest | ✅ Never rate limited | Simplest |
-| `asyncio.gather` (no sem) | Fastest | ❌ 429 storm | Simple |
-| `asyncio.gather` + Semaphore | Near-fastest | ✅ TPM controlled | Low |
-| Celery/ARQ task queue | Fast + durable | ✅ Best | High |
 
 ---
 
@@ -1757,4 +1348,96 @@ Semantic chunking would make more sense when:
 - LLM context window is not a bottleneck
 - Recall is the primary metric (e.g. legal/compliance: never miss a relevant clause)
 
-For a demo on Render free tier: `asyncio.gather + Semaphore(3)` is the right call.
+---
+
+## 21. Contextual Retrieval — Fixing Decontextualized Chunks at Ingest
+
+### The Problem: Fixed-Size Chunks Lose Context
+
+`RecursiveCharacterTextSplitter` at 500 chars cuts documents into fragments. Many fragments are decontextualized — they lack the surrounding information that gives them meaning:
+
+```
+Chunk from NPCI merchant guidelines PDF:
+"The limit was revised to ₹2 lakh."
+
+Problems:
+- "The limit" — which limit? Not in this chunk.
+- "revised" — from what? Not in this chunk.
+- "₹2 lakh" — for what transaction type? Not in this chunk.
+
+Embedding of this chunk → weak, generic vector.
+Query "merchant UPI transaction cap" → this chunk may not surface.
+```
+
+No query-side technique (HyDE, Multi-Query) can fix this — the chunk embedding is weak regardless of how the query is phrased.
+
+### The Fix: Anthropic's Contextual Retrieval
+
+At ingest time, before embedding, ask the LLM to prepend 2 sentences situating each chunk in its document:
+
+```
+Prompt:
+  "Given this document: [full doc or representative sample]
+   Write 2 sentences situating this chunk in context.
+   
+   Chunk: 'The limit was revised to ₹2 lakh.'"
+
+LLM output:
+  "In the NPCI UPI merchant guidelines (2024), Section 4.3 covers
+   transaction ceiling revisions for PSPs. The limit was revised to ₹2 lakh."
+```
+
+The contextual prefix is **prepended to the chunk** before embedding:
+
+```python
+# ingest.py
+chunk.page_content = f"{context_prefix}\n\n{chunk.page_content}"
+# then embed this augmented text
+```
+
+The chunk stored for retrieval is now specific and rich. Same chunk now surfaces for "merchant UPI transaction cap" queries.
+
+### Why This Works
+
+| | Original chunk | Contextual chunk |
+|---|---|---|
+| Text | "The limit was revised to ₹2 lakh." | "NPCI UPI merchant guidelines 2024, PSP ceiling. The limit was revised to ₹2 lakh." |
+| Embedding | Generic "revision" vector | Specific "merchant UPI PSP ceiling" vector |
+| Retrieval | Misses merchant-related queries | Surfaces correctly |
+
+The embedding now represents a complete, specific idea instead of a floating fragment.
+
+### Design Pattern: Ingest-Time vs Query-Time
+
+| | Ingest-time LLM (Contextual Retrieval) | Query-time LLM (HyDE, Multi-Query) |
+|---|---|---|
+| Runs | Once per chunk, at upload | Every query |
+| Cost | Paid once; benefit on every future query | Paid per query |
+| What it fixes | Bad chunk embeddings (quality problem) | Query-corpus vocabulary gap (coverage problem) |
+| Latency impact | Upload slower (~40s for 30 chunks) | Query slower (+200ms per technique) |
+
+**Key insight:** Query-side techniques improve how well a query matches existing chunk vectors. Contextual retrieval improves the chunk vectors themselves. Both are needed for maximum recall.
+
+### Measured Results — Prism v1.3.0 (25 samples)
+
+| Metric | v1.0.0 baseline | v1.3.0 (HyDE+MQ+CTX) | Delta |
+|--------|-----------------|----------------------|-------|
+| context_recall | 0.51 | 0.768 | **+25.8pp** |
+| precision_at_5 | 0.89 | 0.984 | **+9.4pp** |
+| answer_relevancy | 0.62 | 0.799 | +17.9pp |
+| latency p50 | 2029ms | 2610ms | +28% |
+
+Contextual retrieval contributes ~+18% recall (v1.3.0 vs v1.2.0 without CTX: 0.768 vs 0.645).
+
+### Production Complication: 40s Upload
+
+30 chunks × 1 Groq call × ~1.3s/call (sequential) = ~40s blocking. Solution: parallel calls with `asyncio.Semaphore(3)` — 3 concurrent Groq calls at ~3000 TPM burst (under Groq's 6000 TPM limit). Reduces to ~15s. Two-phase upload: sync non-contextual embed first (user can query in <3s), contextual replacement in background.
+
+### Distinction from Briefing (Concept 14)
+
+| | Briefing | Contextual Retrieval |
+|---|---|---|
+| What | Document-level 5-bullet summary + 3 questions | Chunk-level 2-sentence situating context |
+| Shown to user | Yes (in upload response) | No (prepended to chunk text, invisible) |
+| Purpose | User orientation | Embedding quality improvement |
+| LLM calls | 1 per document | 1 per chunk (~30 per doc) |
