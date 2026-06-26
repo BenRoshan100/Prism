@@ -139,6 +139,12 @@ Every concept in this file maps to a specific stage in Prism's request lifecycle
 │              Recall, Precision@5, Latency p50/p95/p99.          │
 │              Includes computation steps, failure modes,         │
 │              Prism v1.0.0 results, and metric interaction map.  │
+│                                                                 │
+│  Concept 20  Semantic Chunking Tradeoff                         │
+│              Topic-boundary splits improve recall but hurt      │
+│              precision when eval pairs are aligned to fixed     │
+│              chunk boundaries. Measured: +9.3pp recall,         │
+│              -27.3pp P@5, 5× latency (v1.4.0 ablation).        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1711,5 +1717,44 @@ Hardcoded 2s retry was too short — Groq's rate limit resets in 10–60s window
 | `asyncio.gather` (no sem) | Fastest | ❌ 429 storm | Simple |
 | `asyncio.gather` + Semaphore | Near-fastest | ✅ TPM controlled | Low |
 | Celery/ARQ task queue | Fast + durable | ✅ Best | High |
+
+---
+
+## 20. Semantic Chunking Tradeoff — Recall vs Precision
+
+### The Problem with Fixed-Size Splits
+
+`RecursiveCharacterTextSplitter` at 500 chars cuts mid-sentence, mid-table, mid-list. Embedding a truncated sentence returns a weak vector — the chunk doesn't represent a complete idea. Semantic chunking fixes this by splitting at topic boundaries (where cosine similarity between adjacent sentences drops below a threshold), producing variable-size chunks that each represent one coherent thought.
+
+### What the Ablation Showed (Prism v1.4.0, 25 samples)
+
+| Stack | recall | P@5 | latency p50 |
+|-------|--------|-----|-------------|
+| v1.3.0 HyDE+MQ+CTX (fixed 500-char) | 0.768 | **0.984** | 2610ms |
+| v1.4.0 + Semantic chunking | **0.861** | 0.711 | 12952ms |
+| Delta | +9.3pp | **−27.3pp** | 5× slower |
+
+### Why Recall Went Up
+
+Semantic chunks contain complete sentences and complete ideas. The embedding captures the full meaning — better vector → higher chance of matching the relevant query → more reference content covered → higher context recall.
+
+### Why Precision Collapsed
+
+P@5 measures overlap between retrieved chunks and the ground-truth `relevant_chunks` field in `eval_pairs.json`. Those reference chunks were defined against fixed 500-char splits. Semantic chunks have different, larger boundaries — they contain the relevant content but as part of a bigger unit, so exact overlap with the reference drops. The reranker also receives a wider, noisier candidate pool (variable-size chunks = less uniform scoring surface).
+
+**Key insight:** P@5 is eval-alignment-sensitive. If ground truth was labelled against fixed chunks, semantic chunks will always score lower on P@5 even when they retrieve better content. For a production system with human-labelled relevance judgements (not self-aligned eval pairs), the gap would be smaller.
+
+### Why Latency Was 5×
+
+Semantic chunks are longer on average than 500-char fixed chunks. Longer chunks = more tokens fed to the LLM per answer generation call. Retrieval time is unchanged (semantic chunking is an ingest-time decision), but inference time scales with context length.
+
+### Decision
+
+Semantic chunking rejected for Prism production. v1.3.0 (HyDE + Multi-Query + Contextual) confirmed as best stack: P@5=0.984, recall=0.768, p50=2610ms.
+
+Semantic chunking would make more sense when:
+- Ground truth eval labels are created after chunking (aligned to the actual chunk boundaries)
+- LLM context window is not a bottleneck
+- Recall is the primary metric (e.g. legal/compliance: never miss a relevant clause)
 
 For a demo on Render free tier: `asyncio.gather + Semaphore(3)` is the right call.
