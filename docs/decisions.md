@@ -35,6 +35,11 @@
 | 2026-06-20 | Config-driven maintenance banner in `frontend/src/config.js` | Single file to toggle `MAINTENANCE_MODE` + `MAINTENANCE_MESSAGE`. Edit + push → Vercel redeploys in ~30s. No hardcoded HTML. | Active |
 | 2026-06-24 | `ast.literal_eval` fallback + control char strip in `generate_briefing()` | Groq LLM sometimes returns Python dict syntax (single quotes) or embeds ASCII control chars (0x00–0x1f) that break `json.loads`. Strip control chars first; fall back to `ast.literal_eval` on `JSONDecodeError`. Both are safe — input is already extracted from LLM regex match. | Active |
 | 2026-06-24 | HyDE enabled by default in config.yaml | Re-eval (v1.1.0_20260624, 18 samples) shows +21pp recall (0.51→0.72) with HyDE. Latency cost 2× (p50 4018ms vs 2029ms) accepted — recall gain outweighs latency. | Active |
+| 2026-06-26 | Citation highlighting via popover, not PDF viewer pane | Sources are PDF/URL/TXT/CSV — a PDF-only viewer fails for most. Popover with full chunk text works for all types. PDF sources get bonus "Open page N →" link via browser's built-in viewer. Zero new npm deps. | Active |
+| 2026-06-26 | `DOMRect` snapshot at click time (not live ref) for popover positioning | Simpler than passing anchorRef into CitationPopover — captures position once at click, no ref forwarding complexity. Stale after scroll (acceptable for demo). | Active |
+| 2026-06-26 | `onMouseDown` stopPropagation on citation `<sup>` | Document-level mousedown in CitationPopover fires before `onClick` on the marker. Without stopPropagation, clicking an open citation closes (mousedown) then immediately reopens (click). stopPropagation on mousedown lets toggle logic in onClick run correctly. | Active |
+| 2026-06-26 | `Path.is_relative_to()` over `startswith()` for file serving guard | `startswith()` on raw strings has prefix-confusion bug: `/data/rawevil` passes `/data/raw` check. `is_relative_to()` (Python 3.9+) is separator-aware and correct. | Active |
+| 2026-06-26 | `UPLOAD_DIR` as absolute `__file__`-relative path | Relative `Path("data/raw")` resolves against process CWD — breaks if uvicorn started from non-project-root directory. `Path(__file__).resolve().parent.../ "data" / "raw"` is stable regardless of CWD. | Active |
 
 ## Rejected alternatives
 

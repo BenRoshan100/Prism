@@ -1,7 +1,7 @@
 # Prism — Project Evolution
 
 > End-to-end record of what was broken at each stage, what was built to fix it, and what is planned next.
-> Updated as the project evolves. Last updated: 2026-06-26 (Stage 15).
+> Updated as the project evolves. Last updated: 2026-06-26 (Stage 16).
 
 ---
 
@@ -21,6 +21,8 @@
 14. [Stage 14 — Briefing Fix + HyDE Re-eval](#stage-14--briefing-fix--hyde-re-eval-2026-06-24)
 12. [Stage 12 — HF Spaces Migration](#stage-12--hf-spaces-migration-2026-06-22)
 12. [Stage 11 — Contextual Retrieval in Production + Dashboard Polish](#stage-11--contextual-retrieval-in-production--dashboard-polish-2026-06-20)
+15. [Stage 15 — Semantic Chunking Ablation + Retrieval Stack Finalized](#stage-15--semantic-chunking-ablation--retrieval-stack-finalized-2026-06-26)
+16. [Stage 16 — Citation Highlighting](#stage-16--citation-highlighting-2026-06-26)
 13. [Current State Snapshot](#current-state-snapshot)
 13. [Roadmap — Retrieval & Answer Quality](#roadmap--retrieval--answer-quality)
 14. [Roadmap — New Features](#roadmap--new-features)
@@ -494,6 +496,32 @@ Semantic chunking raises recall +9.3pp (0.768→0.861) but P@5 collapses -27.3pp
 
 ---
 
+## Stage 16 — Citation Highlighting (2026-06-26)
+
+### What was wrong
+Sources listed below each answer as truncated 200-char snippets. LLM already outputs `[1]`, `[2]` inline citations but they rendered as plain unclickable text. Users couldn't see which passage in the answer corresponded to which source.
+
+### What we built
+
+| File | Change |
+|------|--------|
+| `frontend/src/components/CitationPopover.jsx` | New — viewport-aware popover (fixed-position). Shows: source type badge (pdf/web/file), filename/title, page badge, full chunk content (scrollable), rerank score, "Open page N →" for PDF / "Open source →" for web |
+| `frontend/src/components/MessageBubble.jsx` | Parse `[N]` markers in answer text → clickable `<sup>` superscripts. `openCitation` state (`{ idx, rect } \| null`). Toggle on same click. `onMouseDown` stopPropagation fix (prevents document mousedown from immediately re-opening after close). |
+| `frontend/src/components/SourceExpander.jsx` | Removed 200-char content truncation — full chunk text shown |
+| `server/main.py` | Added `GET /api/files/{filename}` → `FileResponse` from `data/raw/`. Path traversal blocked via `is_relative_to()`. `UPLOAD_DIR` made absolute (`Path(__file__).resolve().parent.parent / "data" / "raw"`). |
+| `server/routes/upload.py` | `UPLOAD_DIR` made absolute (`Path(__file__).resolve().parent.parent.parent / "data" / "raw"`) |
+
+### Key discoveries
+- `mousedown` on document fires before `click` — without `e.stopPropagation()` on the `<sup>` mousedown, clicking an open citation closes then immediately reopens it (toggle broken)
+- `startswith()` on raw path strings has prefix-confusion bug (`/data/rawevil` passes `/data/raw` check) — replaced with `Path.is_relative_to()` (Python 3.9+)
+- Relative `Path("data/raw")` resolves against process CWD — if uvicorn starts from non-project-root directory, file serving breaks. Absolute `__file__`-relative path fixes this.
+- `anchorRect` captured at click time via `el.getBoundingClientRect()` — stored in state as plain object, no ref needed in popover
+
+### Interview story
+> "The LLM cites [1], [2] in its answer. Clicking one opens a popover showing the exact passage retrieved — full text, source file, page number, and rerank score. For PDFs it links directly to that page in the browser."
+
+---
+
 ## Current State Snapshot
 
 ```
@@ -516,6 +544,10 @@ Eval:         Separate eval-dashboard/ static site → https://askprism-eval.ver
               Metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency
               Ablation complete (2026-06-26): v1.1–v1.4 all run. Best: v1.3.0 recall=0.768, P@5=0.984, p50=2610ms
               Versioning: MAJOR.MINOR.PATCH — name changes on MAJOR only (v1.x.x=Violet, v2.x.x=Indigo)
+Citation:     [N] markers in LLM answers → clickable <sup> → CitationPopover (fixed-position, viewport-aware).
+              Shows full chunk text, source name, page, rerank score. PDF: "Open page N →" link via GET /api/files/{filename}.
+              Web: "Open source →". Toggle, click-away, above/below flip at 60% viewport height.
+              SourceExpander: full content shown (200-char truncation removed).
 Frontend:     Violet v1.3 badge in sidebar footer. Maintenance banner config-driven (frontend/src/config.js).
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
 Infra:        HF Spaces CPU Basic (backend, 16GB RAM, ephemeral FS — re-upload required after cold start) +
@@ -650,10 +682,9 @@ Render free tier (512MB RAM) caused repeated OOM crashes under contextual retrie
 - **Effort:** High — both backend and frontend change. `ConversationalRetrievalChain` supports `astream_events()` in LangChain ≥0.2.
 - **Impact:** Perceived latency drops from 10s to ~1s. Single biggest UX improvement.
 
-#### Citation Highlighting
-- **Problem:** Sources listed but user can't see *exactly* which passage was cited.
-- **How:** Show source chunks highlighted inside a PDF viewer pane (react-pdf + highlight overlay). Map chunk text → page number → bounding box.
-- **Impact:** Strongest trust signal for a RAG demo. Interviewers ask "how do you know the answer is grounded?" — show them.
+#### ~~Citation Highlighting~~ ✅ Done (Stage 16, 2026-06-26)
+- `[N]` markers clickable → `CitationPopover` with full chunk text, page badge, rerank score. PDF "Open page N →" link. Zero new npm deps.
+- Works for all source types: PDF, URL, TXT, CSV. No PDF viewer library needed — page link uses browser's built-in viewer.
 
 ---
 
