@@ -1,3 +1,5 @@
+import { useState } from "react";
+import CitationPopover from "./CitationPopover";
 import SourceExpander from "./SourceExpander";
 
 function WebSourcesList({ sources }) {
@@ -39,9 +41,9 @@ function CitedText({ text, onCitationClick }) {
           return (
             <sup
               key={i}
-              onClick={() => onCitationClick(idx)}
+              onClick={(e) => onCitationClick(idx, e.currentTarget)}
               className="ml-0.5 text-indigo-500 font-semibold cursor-pointer hover:text-indigo-700 text-xs select-none"
-              title={`Jump to source [${idx}]`}
+              title={`View source [${idx}]`}
             >
               [{idx}]
             </sup>
@@ -55,11 +57,21 @@ function CitedText({ text, onCitationClick }) {
 
 export default function MessageBubble({ message }) {
   const isUser = message.role === "user";
+  const [openCitation, setOpenCitation] = useState(null); // { idx, rect } | null
 
-  function handleCitationClick(idx) {
-    const el = document.getElementById(`source-${idx}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  function handleCitationClick(idx, el) {
+    if (openCitation?.idx === idx) {
+      setOpenCitation(null);
+    } else {
+      setOpenCitation({ idx, rect: el.getBoundingClientRect() });
+    }
   }
+
+  const activeSrc =
+    openCitation && message.sources
+      ? message.sources.find((s) => s.citation_index === openCitation.idx) ||
+        message.sources[openCitation.idx - 1]
+      : null;
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -97,6 +109,14 @@ export default function MessageBubble({ message }) {
           <SourceExpander sources={message.sources} />
         )}
       </div>
+
+      {openCitation && activeSrc && (
+        <CitationPopover
+          source={activeSrc}
+          anchorRect={openCitation.rect}
+          onClose={() => setOpenCitation(null)}
+        />
+      )}
     </div>
   );
 }
