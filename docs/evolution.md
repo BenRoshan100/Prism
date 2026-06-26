@@ -1,7 +1,7 @@
 # Prism — Project Evolution
 
 > End-to-end record of what was broken at each stage, what was built to fix it, and what is planned next.
-> Updated as the project evolves. Last updated: 2026-06-24 (Stage 14).
+> Updated as the project evolves. Last updated: 2026-06-26 (Stage 15).
 
 ---
 
@@ -464,6 +464,36 @@ Phase 1 (HyDE + Multi-Query) left context_recall at ~0.51. Root cause confirmed:
 
 ---
 
+## Stage 15 — Semantic Chunking Ablation + Retrieval Stack Finalized (2026-06-26)
+
+### What was wrong
+Ablation study incomplete — semantic chunking (v1.4.0) was blocked by Groq rate limits in the prior session. Best production stack unconfirmed.
+
+### What we built / ran
+
+| Version | Config | recall | P@5 | relevancy | correctness | p50 |
+|---------|--------|--------|-----|-----------|-------------|-----|
+| v1.1.0 | HyDE | 0.721 | 0.911 | 0.845 | 0.750 | 4018ms |
+| v1.2.0 | HyDE+MQ | 0.645 | 0.904 | 0.890 | 0.770 | 1812ms |
+| v1.3.0 | HyDE+MQ+CTX | 0.768 | **0.984** | 0.799 | 0.780 | 2610ms |
+| v1.4.0 | HyDE+MQ+CTX+Semantic | **0.861** | 0.711 | 0.885 | 0.750 | 12952ms |
+
+### Decision: semantic chunking rejected
+
+Semantic chunking raises recall +9.3pp (0.768→0.861) but P@5 collapses -27.3pp (0.984→0.711) and latency is 5× worse (2610ms→12952ms p50).
+
+**Root cause of P@5 collapse:** SemanticChunker produces variable-size, topic-boundary chunks. These don't align with the fixed ground-truth keyword spans used for precision@5 scoring. The reranker receives a wider but noisier candidate pool — recall expands while precision degrades.
+
+**Best stack confirmed: v1.3.0 — HyDE + Multi-Query + Contextual Retrieval.**
+
+### Key discoveries
+- MQ alone hurts recall (-7.6pp vs HyDE-only) but recovers fully when combined with CTX
+- CTX is highest-leverage single addition: +8pp P@5, recall recovery, at 2× query latency cost
+- Semantic chunking is a double-edged sword — better chunk boundaries for recall, worse alignment with precision evaluation
+- Ablation study is the interview story: systematic metric-driven elimination of techniques
+
+---
+
 ## Current State Snapshot
 
 ```
@@ -475,14 +505,16 @@ Memory:       ConversationBufferWindowMemory k=10
 Web search:   Tavily advanced, 800-char truncation, max 2 results — MANDATORY (always on)
 HyDE:         ENABLED (config.yaml hyde_enabled=true). Hypothetical answer embedded for dense retrieval.
 Multi-Query:  ENABLED (config.yaml multi_query_enabled=true). 3-phrasing pool before rerank.
-Contextual:   Implemented but OFF in config (contextual_retrieval.enabled=false — Groq 429s at eval scale).
-              Upload pipeline ready: sync non-contextual embed + BackgroundTask contextual refresh.
-              Enable via config.yaml when Groq rate limits allow.
+Contextual:   ENABLED (contextual_retrieval.enabled=true in config). Two-phase upload: sync non-contextual
+              embed first (<3s queryable), BackgroundTask replaces with contextual chunks.
+              max_concurrent=3 (safe under Groq 6000 TPM). May 429 on free tier with large docs.
+Semantic:     DISABLED (semantic_enabled=false). Ablation showed recall +9.3pp but P@5 -27.3pp and 5× latency.
+              Rejected — v1.3.0 (HyDE+MQ+CTX) is the confirmed best stack.
 Briefing:     generate_briefing() fixed — strips control chars, falls back to ast.literal_eval on JSONDecodeError.
 Eval:         Separate eval-dashboard/ static site → https://askprism-eval.vercel.app/
               X-axis shows version name + date. Release notes per version. Dropdown: Violet (v1.0) etc.
               Metrics: answer_correctness, answer_relevancy, context_recall, precision@5, latency
-              v1.1.0 "Violet" (hyde=true, 18 samples, 2026-06-24): correctness=0.750, relevancy=0.845, recall=0.721, P@5=0.911, p50=4018ms
+              Ablation complete (2026-06-26): v1.1–v1.4 all run. Best: v1.3.0 recall=0.768, P@5=0.984, p50=2610ms
               Versioning: MAJOR.MINOR.PATCH — name changes on MAJOR only (v1.x.x=Violet, v2.x.x=Indigo)
 Frontend:     Violet v1.3 badge in sidebar footer. Maintenance banner config-driven (frontend/src/config.js).
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache

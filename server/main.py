@@ -92,7 +92,7 @@ async def serve_file(filename: str) -> FileResponse:
     """Serve uploaded files from data/raw/ for citation PDF links."""
     upload_root = UPLOAD_DIR.resolve()
     target = (UPLOAD_DIR / filename).resolve()
-    if not str(target).startswith(str(upload_root)):
+    if not target.is_relative_to(upload_root):
         raise HTTPException(status_code=400, detail="Invalid filename")
     if not target.exists():
         raise HTTPException(status_code=404, detail="File not found")
