@@ -78,9 +78,7 @@ export default function SourceExpander({ sources }) {
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  {src.content.length > 200
-                    ? src.content.slice(0, 200) + "..."
-                    : src.content}
+                  {src.content}
                 </p>
               </div>
             );
