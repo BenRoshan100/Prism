@@ -2,8 +2,9 @@ from contextlib import asynccontextmanager
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.retriever import get_retriever, get_vectorstore, has_documents
@@ -12,6 +13,9 @@ from server.reranker import load_reranker
 from server.memory import create_memory
 from server.chain import build_qa_chain
 from server.utils import configure_logging, setup_logger, log_memory_mb
+
+# Module-level constant so tests can monkeypatch it
+UPLOAD_DIR = Path("data/raw")
 
 configure_logging()
 logger = setup_logger(__name__)
@@ -81,6 +85,19 @@ app.include_router(workspaces.router, prefix="/api")
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "3.0.0"}
+
+
+@app.get("/api/files/{filename}")
+async def serve_file(filename: str) -> FileResponse:
+    """Serve uploaded files from data/raw/ for citation PDF links."""
+    upload_root = UPLOAD_DIR.resolve()
+    target = (UPLOAD_DIR / filename).resolve()
+    if not str(target).startswith(str(upload_root)):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(str(target))
+
 
 # Serve React frontend build if it exists
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
