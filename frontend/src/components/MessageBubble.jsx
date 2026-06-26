@@ -41,6 +41,7 @@ function CitedText({ text, onCitationClick }) {
           return (
             <sup
               key={i}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => onCitationClick(idx, e.currentTarget)}
               className="ml-0.5 text-indigo-500 font-semibold cursor-pointer hover:text-indigo-700 text-xs select-none"
               title={`View source [${idx}]`}

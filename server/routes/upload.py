@@ -22,7 +22,7 @@ logger = setup_logger(__name__)
 
 router = APIRouter()
 
-UPLOAD_DIR = Path("data/raw")
+UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".csv"}
 
 

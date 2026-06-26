@@ -15,7 +15,7 @@ from server.chain import build_qa_chain
 from server.utils import configure_logging, setup_logger, log_memory_mb
 
 # Module-level constant so tests can monkeypatch it
-UPLOAD_DIR = Path("data/raw")
+UPLOAD_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 
 configure_logging()
 logger = setup_logger(__name__)
