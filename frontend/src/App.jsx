@@ -11,10 +11,16 @@ function App() {
   const [suggestedQuestion, setSuggestedQuestion] = useState("");
   const [currentWorkspace, setCurrentWorkspace] = useState("default");
   const [workspaces, setWorkspaces] = useState(["default"]);
+  const [filterDocs, setFilterDocs] = useState([]);
 
   useEffect(() => {
     getDocuments(currentWorkspace).then((d) => setDocuments(d.documents || []));
     getWorkspaces().then((d) => setWorkspaces(d.workspaces || ["default"]));
+  }, [currentWorkspace]);
+
+  // Reset filter when workspace changes
+  useEffect(() => {
+    setFilterDocs([]);
   }, [currentWorkspace]);
 
   async function handleNewConversation() {
@@ -33,6 +39,12 @@ function App() {
   }
 
   const handleSuggestedQuestionUsed = useCallback(() => setSuggestedQuestion(""), []);
+
+  function handleFilterChange(docName) {
+    setFilterDocs((prev) =>
+      prev.includes(docName) ? prev.filter((d) => d !== docName) : [...prev, docName]
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -71,6 +83,9 @@ function App() {
           workspaces={workspaces}
           onWorkspaceChange={handleWorkspaceChange}
           onWorkspacesUpdate={setWorkspaces}
+          filterDocs={filterDocs}
+          onFilterChange={handleFilterChange}
+          onFilterClear={() => setFilterDocs([])}
         />
         <ChatArea
           key={currentWorkspace}
@@ -79,6 +94,8 @@ function App() {
           suggestedQuestion={suggestedQuestion}
           onSuggestedQuestionUsed={handleSuggestedQuestionUsed}
           currentWorkspace={currentWorkspace}
+          filterDocs={filterDocs}
+          onFilterClear={() => setFilterDocs([])}
         />
       </main>
     </div>

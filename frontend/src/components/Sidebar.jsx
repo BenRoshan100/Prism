@@ -63,6 +63,9 @@ export default function Sidebar({
   workspaces,
   onWorkspaceChange,
   onWorkspacesUpdate,
+  filterDocs = [],
+  onFilterChange,
+  onFilterClear,
 }) {
   const [deletingDoc, setDeletingDoc] = useState(null);
 
@@ -158,41 +161,66 @@ export default function Sidebar({
 
         {/* Uploaded Documents */}
         <div className="bg-gray-50/80 rounded-xl p-3.5">
-          <h3 className="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-2.5">
-            Documents ({documents.length})
-          </h3>
+          <div className="flex items-center justify-between mb-2.5">
+            <h3 className="text-xs font-semibold text-indigo-500 uppercase tracking-wider">
+              Documents ({documents.length})
+            </h3>
+            {filterDocs.length > 0 && (
+              <button
+                type="button"
+                onClick={onFilterClear}
+                className="text-xs text-indigo-400 hover:text-indigo-600 transition-colors"
+              >
+                Clear filter
+              </button>
+            )}
+          </div>
           {documents.length === 0 ? (
             <p className="text-sm text-gray-400">No documents yet</p>
           ) : (
             <ul className="space-y-1.5">
-              {documents.map((doc, i) => (
-                <li
-                  key={i}
-                  className="flex items-center justify-between text-sm bg-white rounded-lg px-3 py-2 shadow-xs"
-                >
-                  <span className="text-gray-700 truncate flex-1 min-w-0">{doc.name}</span>
-                  <span className="text-indigo-400 shrink-0 ml-2 text-xs font-medium">
-                    {doc.chunk_count}
-                  </span>
-                  <button
-                    onClick={() => handleDelete(doc.name)}
-                    disabled={deletingDoc === doc.name}
-                    title="Remove document"
-                    className="ml-2 shrink-0 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40"
+              {documents.map((doc, i) => {
+                const isSelected = filterDocs.includes(doc.name);
+                const isFiltering = filterDocs.length > 0;
+                return (
+                  <li
+                    key={i}
+                    className={`flex items-center justify-between text-sm bg-white rounded-lg px-3 py-2 shadow-xs transition-all cursor-pointer ${
+                      isSelected
+                        ? "ring-2 ring-indigo-500 bg-indigo-50"
+                        : isFiltering
+                        ? "opacity-50"
+                        : "hover:ring-1 hover:ring-indigo-300"
+                    }`}
+                    onClick={() => onFilterChange(doc.name)}
+                    title={isSelected ? "Click to remove filter" : "Click to filter to this doc"}
                   >
-                    {deletingDoc === doc.name ? (
-                      <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                      </svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zm-1 6a1 1 0 112 0v5a1 1 0 11-2 0V8zm4 0a1 1 0 112 0v5a1 1 0 11-2 0V8z" clipRule="evenodd"/>
-                      </svg>
-                    )}
-                  </button>
-                </li>
-              ))}
+                    <span className={`truncate flex-1 min-w-0 ${isSelected ? "text-indigo-700 font-medium" : "text-gray-700"}`}>
+                      {doc.name}
+                    </span>
+                    <span className="text-indigo-400 shrink-0 ml-2 text-xs font-medium">
+                      {doc.chunk_count}
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(doc.name); }}
+                      disabled={deletingDoc === doc.name}
+                      title="Remove document"
+                      className="ml-2 shrink-0 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40"
+                    >
+                      {deletingDoc === doc.name ? (
+                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zm-1 6a1 1 0 112 0v5a1 1 0 11-2 0V8zm4 0a1 1 0 112 0v5a1 1 0 11-2 0V8z" clipRule="evenodd"/>
+                        </svg>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

@@ -74,7 +74,7 @@ export async function deleteDocument(filename, workspaceId = "default") {
   return data;
 }
 
-export async function streamChat(question, workspaceId = "default", { onToken, onDone, onError }) {
+export async function streamChat(question, workspaceId = "default", { onToken, onDone, onError }, filterDocs = null) {
   let response;
   try {
     response = await fetch(
@@ -82,7 +82,10 @@ export async function streamChat(question, workspaceId = "default", { onToken, o
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({
+          question,
+          filter_docs: filterDocs && filterDocs.length > 0 ? filterDocs : null,
+        }),
       }
     );
   } catch (err) {

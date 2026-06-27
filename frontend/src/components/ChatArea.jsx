@@ -2,7 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { streamChat } from "../api";
 import MessageBubble from "./MessageBubble";
 
-export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion, onSuggestedQuestionUsed, currentWorkspace = "default" }) {
+export default function ChatArea({
+  onEvalEntry,
+  hasDocuments,
+  suggestedQuestion,
+  onSuggestedQuestionUsed,
+  currentWorkspace = "default",
+  filterDocs = [],
+  onFilterClear,
+}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,40 +44,45 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
     setLoading(true);
 
     try {
-      await streamChat(question, currentWorkspace, {
-        onToken: (token) => {
-          tokenBuffer.push(token);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === msgId ? { ...m, content: m.content + token } : m
-            )
-          );
+      await streamChat(
+        question,
+        currentWorkspace,
+        {
+          onToken: (token) => {
+            tokenBuffer.push(token);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === msgId ? { ...m, content: m.content + token } : m
+              )
+            );
+          },
+          onDone: (event) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === msgId
+                  ? {
+                      ...m,
+                      sources: event.sources ?? [],
+                      retrieval_method: event.retrieval_method,
+                      loading: false,
+                    }
+                  : m
+              )
+            );
+            onEvalEntry?.({ query: question, answer: tokenBuffer.join("") });
+          },
+          onError: (message) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === msgId
+                  ? { ...m, content: `Error: ${message}`, loading: false }
+                  : m
+              )
+            );
+          },
         },
-        onDone: (event) => {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === msgId
-                ? {
-                    ...m,
-                    sources: event.sources ?? [],
-                    retrieval_method: event.retrieval_method,
-                    loading: false,
-                  }
-                : m
-            )
-          );
-          onEvalEntry?.({ query: question, answer: tokenBuffer.join("") });
-        },
-        onError: (message) => {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === msgId
-                ? { ...m, content: `Error: ${message}`, loading: false }
-                : m
-            )
-          );
-        },
-      });
+        filterDocs.length > 0 ? filterDocs : null
+      );
     } finally {
       setLoading(false);
     }
@@ -81,12 +94,7 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <svg
-              className="w-16 h-16 text-indigo-200 mb-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-16 h-16 text-indigo-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -95,9 +103,7 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
               />
             </svg>
             <p className="text-lg font-medium text-gray-500 mb-1">
-              {hasDocuments
-                ? "Ask a question about your documents"
-                : "Upload documents to get started"}
+              {hasDocuments ? "Ask a question about your documents" : "Upload documents to get started"}
             </p>
             <p className="text-sm text-gray-400">
               {hasDocuments
@@ -112,6 +118,28 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
         <div ref={bottomRef} />
       </div>
 
+      {/* Filter badge */}
+      {filterDocs.length > 0 && (
+        <div className="px-4 pt-2 max-w-4xl mx-auto w-full">
+          <div className="flex items-center gap-2 text-xs text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-1.5">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+            <span className="truncate flex-1">
+              Scoped to: {filterDocs.join(", ")}
+            </span>
+            <button
+              type="button"
+              onClick={onFilterClear}
+              className="shrink-0 text-indigo-400 hover:text-indigo-600 transition-colors font-medium"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <form onSubmit={handleSend} className="p-4 bg-white border-t border-gray-100">
         <div className="flex gap-3 max-w-4xl mx-auto">
@@ -120,7 +148,9 @@ export default function ChatArea({ onEvalEntry, hasDocuments, suggestedQuestion,
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-              hasDocuments
+              filterDocs.length > 0
+                ? `Searching ${filterDocs.length} selected doc${filterDocs.length > 1 ? "s" : ""}...`
+                : hasDocuments
                 ? "Ask anything — searching docs + web..."
                 : "Upload documents first to start chatting"
             }
