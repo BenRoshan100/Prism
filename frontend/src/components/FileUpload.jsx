@@ -18,7 +18,7 @@ export default function FileUpload({ onUploadComplete, onBriefing, currentWorksp
     pollRef.current = setInterval(async () => {
       try {
         const status = await getUploadStatus(jobId);
-        setStageMsg(status.message);
+        if (status.status !== "contextualizing") setStageMsg(status.message);
 
         if (status.status === "ready") {
           clearInterval(pollRef.current);
