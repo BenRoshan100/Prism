@@ -16,6 +16,7 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     question: str
+    filter_docs: list[str] | None = None
 
 
 @router.post("/chat")
@@ -24,11 +25,17 @@ async def chat(
     body: ChatRequest,
     workspace: str = Query("default"),
 ):
+    from server.retriever import get_retriever as _get_retriever, get_retriever_filtered
+
     chain = request.app.state.chain
-    retriever = getattr(request.app.state, "retriever", None)
-    if retriever is None:
-        from server.retriever import get_retriever as _get_retriever
-        retriever = _get_retriever(workspace)
+    active_filter = body.filter_docs if body.filter_docs else None
+
+    if active_filter:
+        retriever = get_retriever_filtered(workspace, active_filter)
+    else:
+        retriever = getattr(request.app.state, "retriever", None)
+        if retriever is None:
+            retriever = _get_retriever(workspace)
 
     eval_log = request.app.state.eval_log
     memory = request.app.state.memory
@@ -40,7 +47,10 @@ async def chat(
                 return
 
             log_memory_mb(logger, "chat-start")
-            logger.info("QUERY | workspace=%s | %s", workspace, body.question[:100])
+            logger.info(
+                "QUERY | workspace=%s | filter=%s | %s",
+                workspace, active_filter, body.question[:100]
+            )
 
             web_sources = []
             try:
