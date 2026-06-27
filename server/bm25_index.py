@@ -35,23 +35,25 @@ class BM25Index:
                     results.append(doc)
             return results
 
-        # Filter corpus by sources
-        corpus = [d for d in self._corpus if d["source"] in filter_sources]
-        if not corpus:
+        # Filter corpus by sources, but score using original BM25 index (which has meaningful IDF from full corpus)
+        filter_indices = [i for i, d in enumerate(self._corpus) if d["source"] in filter_sources]
+        if not filter_indices:
             return []
 
-        # Build temporary BM25 index on filtered corpus
-        tokenized_corpus = [doc["content"].lower().split() for doc in corpus]
-        bm25 = BM25Okapi(tokenized_corpus)
         tokenized_query = query.lower().split()
-        scores = bm25.get_scores(tokenized_query)
-        top_k_idx = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
+        all_scores = self._bm25.get_scores(tokenized_query)
+
+        # Get scores only for filtered indices
+        filtered_scores = [(i, all_scores[i]) for i in filter_indices]
+        # Sort by score descending and take top k
+        top_k = sorted(filtered_scores, key=lambda x: x[1], reverse=True)[:k]
+
         results = []
-        for idx in top_k_idx:
-            # For filtered corpus, include all results (small corpora can produce negative BM25 scores)
-            doc = dict(corpus[idx])
-            doc["bm25_score"] = round(float(scores[idx]), 4)
-            results.append(doc)
+        for idx, score in top_k:
+            if score > 0:
+                doc = dict(self._corpus[idx])
+                doc["bm25_score"] = round(float(score), 4)
+                results.append(doc)
         return results
 
     def is_built(self) -> bool:
