@@ -24,6 +24,7 @@ def load_documents(data_dir: str) -> list:
     Return list of LangChain Document objects with metadata:
     - source: filename
     - page: page number (PDFs only)
+    - source_type: document type (pdf, txt, csv)
     """
     data_path = Path(data_dir)
     documents = []
@@ -34,18 +35,21 @@ def load_documents(data_dir: str) -> list:
             docs = loader.load()
             for doc in docs:
                 doc.metadata["source"] = file_path.name
+                doc.metadata["source_type"] = "pdf"
             documents.extend(docs)
         elif file_path.suffix.lower() == ".txt":
             loader = TextLoader(str(file_path), encoding="utf-8")
             docs = loader.load()
             for doc in docs:
                 doc.metadata["source"] = file_path.name
+                doc.metadata["source_type"] = "txt"
             documents.extend(docs)
         elif file_path.suffix.lower() == ".csv":
             loader = CSVLoader(str(file_path), encoding="utf-8")
             docs = loader.load()
             for doc in docs:
                 doc.metadata["source"] = file_path.name
+                doc.metadata["source_type"] = "csv"
             documents.extend(docs)
 
     logger.info(f"Loaded {len(documents)} document pages from {data_dir}")
@@ -56,6 +60,7 @@ def load_documents_from_paths(file_paths: list[str]) -> list:
     """Load documents from explicit file paths (not directory scan).
 
     Raises ValueError for password-protected PDFs so callers can return a clean 422.
+    All documents include source_type metadata: pdf, txt, csv.
     """
     documents = []
     for fp in file_paths:
@@ -73,18 +78,21 @@ def load_documents_from_paths(file_paths: list[str]) -> list:
                 raise
             for doc in docs:
                 doc.metadata["source"] = file_path.name
+                doc.metadata["source_type"] = "pdf"
             documents.extend(docs)
         elif file_path.suffix.lower() == ".txt":
             loader = TextLoader(str(file_path), encoding="utf-8")
             docs = loader.load()
             for doc in docs:
                 doc.metadata["source"] = file_path.name
+                doc.metadata["source_type"] = "txt"
             documents.extend(docs)
         elif file_path.suffix.lower() == ".csv":
             loader = CSVLoader(str(file_path), encoding="utf-8")
             docs = loader.load()
             for doc in docs:
                 doc.metadata["source"] = file_path.name
+                doc.metadata["source_type"] = "csv"
             documents.extend(docs)
     logger.info(f"Loaded {len(documents)} document pages from {len(file_paths)} files")
     return documents
@@ -136,7 +144,7 @@ def chunk_documents(documents: list, chunk_size: int = 500, chunk_overlap: int =
 def contextualize_chunks(
     chunks: list,
     documents: list,
-    model: str = "llama-3.1-8b-instant",
+    model: str = "openai/gpt-oss-20b",
     sleep_between_calls: float = 0.1,
 ) -> list:
     """Prepend 2-sentence LLM context to each chunk before embedding.
@@ -249,7 +257,7 @@ async def _contextualize_one(
 async def contextualize_chunks_async(
     chunks: list,
     documents: list,
-    model: str = "llama-3.1-8b-instant",
+    model: str = "openai/gpt-oss-20b",
     max_concurrent: int = 20,
 ) -> list:
     """Parallel async contextualization — ~10× faster than sequential contextualize_chunks().

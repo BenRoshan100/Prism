@@ -57,6 +57,7 @@ def load_url(url: str, timeout: float = 15.0) -> list[Document]:
             page_content=full_text,
             metadata={
                 "source": url,
+                "source_type": "url",
                 "type": "web",
                 "fetched_at": datetime.now(timezone.utc).isoformat(),
             },
