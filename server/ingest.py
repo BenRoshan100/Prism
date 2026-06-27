@@ -144,7 +144,7 @@ def chunk_documents(documents: list, chunk_size: int = 500, chunk_overlap: int =
 def contextualize_chunks(
     chunks: list,
     documents: list,
-    model: str = "openai/gpt-oss-20b",
+    model: str = "llama-3.1-8b-instant",
     sleep_between_calls: float = 0.1,
 ) -> list:
     """Prepend 2-sentence LLM context to each chunk before embedding.
@@ -257,7 +257,7 @@ async def _contextualize_one(
 async def contextualize_chunks_async(
     chunks: list,
     documents: list,
-    model: str = "openai/gpt-oss-20b",
+    model: str = "llama-3.1-8b-instant",
     max_concurrent: int = 20,
 ) -> list:
     """Parallel async contextualization — ~10× faster than sequential contextualize_chunks().
