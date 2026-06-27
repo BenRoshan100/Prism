@@ -41,6 +41,12 @@
 | 2026-06-26 | `Path.is_relative_to()` over `startswith()` for file serving guard | `startswith()` on raw strings has prefix-confusion bug: `/data/rawevil` passes `/data/raw` check. `is_relative_to()` (Python 3.9+) is separator-aware and correct. | Active |
 | 2026-06-26 | `UPLOAD_DIR` as absolute `__file__`-relative path | Relative `Path("data/raw")` resolves against process CWD — breaks if uvicorn started from non-project-root directory. `Path(__file__).resolve().parent.../ "data" / "raw"` is stable regardless of CWD. | Active |
 
+| 2026-06-27 | Metadata filtering: full-corpus BM25 scoring with candidate pool filter | Spec suggested rebuilding BM25 on filtered subset. Full-corpus IDF is correct IR — rare terms don't get inflated weight in a 2-doc subset. Filter which indices enter candidate pool; score with global index. | Active |
+| 2026-06-27 | Metadata filtering: one-off retriever per filtered request | `get_retriever_filtered()` creates new `HybridRetriever` with `filter_docs` set; reuses cached vectorstore. Singleton cache (`_retriever_cache`) untouched. Thread-safe: vectorstore (heavy) stays shared, retriever (cheap) is ephemeral. | Active |
+| 2026-06-27 | Empty `filter_docs` treated as no filter | Backend guard: `body.filter_docs if body.filter_docs else None`. Frontend sends `null` when array is empty. Prevents zero-result queries from empty selection. | Active |
+| 2026-06-27 | `source_type` metadata added to all chunks at ingest | PDF/TXT/CSV tagged at load time in `ingest.py`; URL-ingested docs tagged in `url_loader.py`. Enables citation badge display and potential future source-type filtering. | Active |
+| 2026-06-27 | Filter state resets on workspace switch | `useEffect(() => setFilterDocs([]), [currentWorkspace])` in `App.jsx`. Stale filter from workspace A cannot pollute queries in workspace B. | Active |
+
 ## Rejected alternatives
 
 | Alternative | Why rejected |

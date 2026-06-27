@@ -17,7 +17,7 @@ Upload → chunk (500-char) → optional contextual augmentation (LLM prepends 2
 | Embeddings | Euron API (text-embedding-3-small) | API-based; Groq has no embeddings endpoint. |
 | LLM | Groq (llama-3.3-70b-versatile) via langchain-groq | Fast open-weight inference; OpenAI-compatible |
 | Chunking | RecursiveCharacterTextSplitter (500-char, overlap 50) | Single-pass split; semantic chunking available but disabled (ablation: +9.3pp recall, −27.3pp P@5, 5× latency) |
-| Contextual retrieval | LLM (llama-3.1-8b-instant) at ingest time | Prepends 2-sentence situating context per chunk before embedding; +18% recall. Async via Semaphore(3). |
+| Contextual retrieval | LLM (openai/gpt-oss-20b) at ingest time | Prepends 2-sentence situating context per chunk before embedding; +18% recall. Async via Semaphore(3). |
 | HyDE | Groq LLM generates hypothetical answer before dense search | Closes question/answer vector space gap; +21pp recall. ON by default. |
 | Multi-Query | Groq LLM generates 3 query phrasings | Widens candidate pool before RRF; best-rank dedup. ON by default. |
 | Web search | Tavily (advanced, max 2 results, 800-char truncation) | Mandatory on every query; grounded answers for open-domain questions |
@@ -95,6 +95,6 @@ Upload → chunk (500-char) → optional contextual augmentation (LLM prepends 2
 ## Future improvements
 - Persist BM25 index to disk (pickle) — eliminates ~1s rebuild on startup
 - Mount HF persistent storage bucket — eliminate chroma_db loss on cold start
-- Metadata filtering: tag chunks with `{source_type, year, doc_name}` at ingest; pass `filter` param in `/api/chat` for scoped retrieval
+- ~~Metadata filtering~~ — shipped Stage 17 (sidebar doc chips → `filter_docs` on `/api/chat` → ChromaDB `where` + BM25 pool filter)
 - Document comparison mode: retrieve from two collections, synthesise structured diff answer
 - Agentic mode (LangGraph): replace ConversationalRetrievalChain with graph — nodes for retrieval, web search, calculator, synthesiser

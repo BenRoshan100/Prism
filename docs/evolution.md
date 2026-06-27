@@ -1,7 +1,7 @@
 # Prism — Project Evolution
 
 > End-to-end record of what was broken at each stage, what was built to fix it, and what is planned next.
-> Updated as the project evolves. Last updated: 2026-06-26 (Stage 16).
+> Updated as the project evolves. Last updated: 2026-06-27 (Stage 17).
 
 ---
 
@@ -23,6 +23,7 @@
 12. [Stage 11 — Contextual Retrieval in Production + Dashboard Polish](#stage-11--contextual-retrieval-in-production--dashboard-polish-2026-06-20)
 15. [Stage 15 — Semantic Chunking Ablation + Retrieval Stack Finalized](#stage-15--semantic-chunking-ablation--retrieval-stack-finalized-2026-06-26)
 16. [Stage 16 — Citation Highlighting](#stage-16--citation-highlighting-2026-06-26)
+17. [Stage 17 — Metadata Filtering](#stage-17--metadata-filtering-2026-06-27)
 13. [Current State Snapshot](#current-state-snapshot)
 13. [Roadmap — Retrieval & Answer Quality](#roadmap--retrieval--answer-quality)
 14. [Roadmap — New Features](#roadmap--new-features)
@@ -522,6 +523,39 @@ Sources listed below each answer as truncated 200-char snippets. LLM already out
 
 ---
 
+## Stage 17 — Metadata Filtering (2026-06-27)
+
+### What was wrong
+All documents in a workspace were always searched together. A user with 10 docs spanning 5 years had no way to scope a query to a specific doc or subset. Corpus-wide retrieval diluted precision when the relevant content was known to be in one file.
+
+### What we built
+
+| File | Change |
+|------|--------|
+| `server/ingest.py` | `source_type` metadata field (`pdf`/`txt`/`csv`) added to all chunks at load time via `SOURCE_TYPE_MAP`. Both `load_documents` and `load_documents_from_paths` patched. |
+| `server/url_loader.py` | `source_type: "url"` added to URL-ingested doc metadata. |
+| `server/bm25_index.py` | `BM25Index.search()` gets `filter_sources: set[str] \| None = None`. When set, scores using full-corpus BM25 index (stable IDF) but restricts candidate pool to matching docs. |
+| `server/retriever.py` | `filter_docs: list[str] \| None = None` field on `HybridRetriever`. Wired into `_dense_retrieve` (ChromaDB `where={"source": {"$in": filter_docs}}`) and `_get_relevant_documents` (BM25 `filter_sources`). New `get_retriever_filtered(workspace_id, filter_docs)` helper — one-off instance reusing cached vectorstore, not added to singleton cache. |
+| `server/routes/chat.py` | `filter_docs: list[str] \| None = None` on `ChatRequest`. Guard: empty list → None. When truthy: `get_retriever_filtered(workspace, active_filter)`. Log includes `filter=%s`. |
+| `frontend/src/api.js` | `streamChat` gets `filterDocs = null` as 4th arg; sends `filter_docs: filterDocs?.length ? filterDocs : null`. |
+| `frontend/src/App.jsx` | `filterDocs: string[]` state. `useEffect` resets to `[]` on workspace change. `handleFilterChange` toggles doc in/out. Props forwarded to Sidebar + ChatArea. |
+| `frontend/src/components/Sidebar.jsx` | Doc list items clickable — toggle filter on click. Selected: `ring-2 ring-indigo-500 bg-indigo-50`. Unselected during active filter: `opacity-50`. "Clear filter" button in section header when any selected. Delete button: `e.stopPropagation()` + deselects deleted doc from filter. |
+| `frontend/src/components/ChatArea.jsx` | Filter badge above input when `filterDocs.length > 0` (shows scoped doc names + × clear). Placeholder: "Searching N selected doc(s)..." when filter active. `streamChat` called with `filterDocs.length > 0 ? filterDocs : null`. |
+| `tests/test_bm25_filter.py` | 6 tests: no-filter returns all, filter restricts by source, empty set returns empty, nonexistent source returns empty, multiple sources, unbuilt index returns empty. |
+| `tests/test_source_type.py` | 4 tests: pdf/txt/csv/url each gets correct `source_type`. |
+
+### Key design decisions
+- **Full-corpus BM25 for filtering**: spec suggested rebuilding BM25 on filtered subset; implementation uses full-corpus index to score + restricts candidate pool by source. Stable IDF — correct IR semantics. Accepted as superior to spec.
+- **New retriever instance per filtered request**: `get_retriever_filtered()` creates a one-off `HybridRetriever`; singleton cache (`_retriever_cache`) untouched. Thread-safe: heavy vectorstore stays cached, lightweight retriever is cheap.
+- **Empty filter = no filter**: backend guard `body.filter_docs if body.filter_docs else None` — empty array from frontend treated as no filter.
+- **Filter resets on workspace switch**: `useEffect(() => setFilterDocs([]), [currentWorkspace])` — stale filter from workspace A doesn't carry to workspace B.
+- **Delete deselects**: `handleDelete` calls `onFilterChange(docName)` if deleted doc was selected — prevents badge showing "Scoped to: [deleted]" with zero results.
+
+### Interview story
+> "Within a workspace, users can click any doc chip in the sidebar to scope retrieval. Dense retrieval passes `where={"source": {"$in": selected_docs}}` to ChromaDB; BM25 pre-filters its candidate pool. Zero selection = full-corpus behavior unchanged. Filter badge above the input makes the scope visible."
+
+---
+
 ## Current State Snapshot
 
 ```
@@ -549,6 +583,10 @@ Citation:     [N] markers in LLM answers → clickable <sup> → CitationPopover
               Web: "Open source →". Toggle, click-away, above/below flip at 60% viewport height.
               SourceExpander: full content shown (200-char truncation removed).
 Frontend:     Violet v1.3 badge in sidebar footer. Maintenance banner config-driven (frontend/src/config.js).
+Filter:       Sidebar doc chips toggleable. Selected: indigo ring. Badge above chat input shows scoped docs + clear ×.
+              POST /api/chat accepts filter_docs: string[] | null. Empty = no filter. Resets on workspace switch.
+              Backend: get_retriever_filtered() creates one-off HybridRetriever; singleton cache untouched.
+              ChromaDB where={"source": {"$in": filter_docs}}. BM25 filters candidate pool, scores with full-corpus IDF.
 Workspaces:   Per-workspace ChromaDB collection, singleton retriever cache
 Infra:        HF Spaces CPU Basic (backend, 16GB RAM, ephemeral FS — re-upload required after cold start) +
               https://askprism.vercel.app/ (frontend) + https://askprism-eval.vercel.app/ (eval)
