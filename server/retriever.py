@@ -57,6 +57,7 @@ class HybridRetriever(BaseRetriever):
     workspace_id: str = "default"
     use_hyde: bool = False
     use_multi_query: bool = False
+    filter_docs: list[str] | None = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -121,7 +122,10 @@ class HybridRetriever(BaseRetriever):
             return query
 
     def _dense_retrieve(self, query: str, k: int) -> list[dict]:
-        results = self.vectorstore.similarity_search_with_relevance_scores(query, k=k)
+        filter_arg = {"source": {"$in": self.filter_docs}} if self.filter_docs else None
+        results = self.vectorstore.similarity_search_with_relevance_scores(
+            query, k=k, filter=filter_arg
+        )
         output = []
         for doc, score in results:
             output.append({
@@ -173,7 +177,10 @@ class HybridRetriever(BaseRetriever):
         for q in queries:
             dense_query = self._hyde_expand(q) if self.use_hyde else q
             d_results = self._dense_retrieve(dense_query, k=self.retrieve_k)
-            s_results = get_index(self.workspace_id).search(q, k=self.retrieve_k)
+            filter_sources = set(self.filter_docs) if self.filter_docs else None
+            s_results = get_index(self.workspace_id).search(
+                q, k=self.retrieve_k, filter_sources=filter_sources
+            )
 
             for rank, doc in enumerate(d_results):
                 key = doc["content"][:120]
@@ -224,6 +231,23 @@ def get_retriever(workspace_id: str = DEFAULT_WORKSPACE) -> HybridRetriever:
             use_multi_query=retrieval_cfg.get("multi_query_enabled", False),
         )
     return _retriever_cache[workspace_id]
+
+
+def get_retriever_filtered(workspace_id: str, filter_docs: list[str]) -> HybridRetriever:
+    """One-off retriever with doc filter applied. Reuses cached vectorstore; does NOT cache itself."""
+    config = load_config()
+    retrieval_cfg = config.get("retrieval", {})
+    return HybridRetriever(
+        vectorstore=get_vectorstore(workspace_id),
+        dense_weight=retrieval_cfg.get("dense_weight", 0.7),
+        sparse_weight=retrieval_cfg.get("sparse_weight", 0.3),
+        retrieve_k=retrieval_cfg.get("retrieve_k", 10),
+        rerank_k=retrieval_cfg.get("rerank_k", 5),
+        workspace_id=workspace_id,
+        use_hyde=retrieval_cfg.get("hyde_enabled", False),
+        use_multi_query=retrieval_cfg.get("multi_query_enabled", False),
+        filter_docs=filter_docs,
+    )
 
 
 def retrieve_with_scores(query: str, k: int = 5) -> list[dict]:
