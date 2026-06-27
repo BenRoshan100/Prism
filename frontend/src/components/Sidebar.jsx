@@ -75,6 +75,7 @@ export default function Sidebar({
     try {
       const result = await deleteDocument(docName, currentWorkspace);
       setDocuments(result.documents);
+      if (filterDocs.includes(docName)) onFilterChange?.(docName);
     } catch (e) {
       alert(`Delete failed: ${e?.response?.data?.detail || e.message}`);
     } finally {
