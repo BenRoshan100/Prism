@@ -18,18 +18,40 @@ class BM25Index:
         self._bm25 = BM25Okapi(tokenized)
         logger.info(f"BM25 index built: {len(corpus)} docs")
 
-    def search(self, query: str, k: int = 20) -> list[dict]:
+    def search(self, query: str, k: int = 20, filter_sources: set[str] | None = None) -> list[dict]:
         if self._bm25 is None:
             return []
+
+        # If no filter, use pre-built index and corpus as-is
+        if filter_sources is None:
+            tokenized_query = query.lower().split()
+            scores = self._bm25.get_scores(tokenized_query)
+            top_k_idx = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
+            results = []
+            for idx in top_k_idx:
+                if scores[idx] > 0:
+                    doc = dict(self._corpus[idx])
+                    doc["bm25_score"] = round(float(scores[idx]), 4)
+                    results.append(doc)
+            return results
+
+        # Filter corpus by sources
+        corpus = [d for d in self._corpus if d["source"] in filter_sources]
+        if not corpus:
+            return []
+
+        # Build temporary BM25 index on filtered corpus
+        tokenized_corpus = [doc["content"].lower().split() for doc in corpus]
+        bm25 = BM25Okapi(tokenized_corpus)
         tokenized_query = query.lower().split()
-        scores = self._bm25.get_scores(tokenized_query)
+        scores = bm25.get_scores(tokenized_query)
         top_k_idx = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
         results = []
         for idx in top_k_idx:
-            if scores[idx] > 0:
-                doc = dict(self._corpus[idx])
-                doc["bm25_score"] = round(float(scores[idx]), 4)
-                results.append(doc)
+            # For filtered corpus, include all results (small corpora can produce negative BM25 scores)
+            doc = dict(corpus[idx])
+            doc["bm25_score"] = round(float(scores[idx]), 4)
+            results.append(doc)
         return results
 
     def is_built(self) -> bool:
