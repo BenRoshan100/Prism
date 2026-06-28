@@ -73,8 +73,15 @@ async def _embed_and_contextualize_bg(
         gc.collect()
 
         # Phase 2: contextual refresh (optional)
-        if ctx_cfg.get("enabled", False):
-            ctx_model = ctx_cfg.get("model", "llama-3.1-8b-instant")
+        max_chunks_for_ctx = ctx_cfg.get("max_chunks", 50)
+        ctx_enabled = ctx_cfg.get("enabled", False) and n <= max_chunks_for_ctx
+        if not ctx_enabled and ctx_cfg.get("enabled", False):
+            logger.warning(
+                "Contextual retrieval skipped: %d chunks > max_chunks=%d (~%.0f min on free-tier TPM)",
+                n, max_chunks_for_ctx, n / 6,
+            )
+        if ctx_enabled:
+            ctx_model = ctx_cfg.get("model", "openai/gpt-oss-20b")
             max_concurrent = ctx_cfg.get("max_concurrent", 3)
             source_filenames = [Path(p).name for p in saved_paths]
 

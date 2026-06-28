@@ -105,8 +105,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run RAGAS eval locally and save to JSON")
     parser.add_argument("--n", type=int, default=10, help="Number of eval pairs to run (default 10)")
     parser.add_argument("--full", action="store_true", help="Run all 4 metrics incl. context_precision + context_recall")
-    parser.add_argument("--eval-model", default="llama-3.1-8b-instant",
-                        help="Groq model used as RAGAS judge (default: llama-3.1-8b-instant, 500k TPD). "
+    parser.add_argument("--eval-model", default="openai/gpt-oss-20b",
+                        help="Groq model used as RAGAS judge (default: openai/gpt-oss-20b). "
                              "Separate from answer-generation model to avoid burning 70B token quota.")
     args = parser.parse_args()
 

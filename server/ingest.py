@@ -171,7 +171,7 @@ def contextualize_chunks(
             continue
 
         source = chunk.metadata.get("source", "unknown")
-        full_doc_text = doc_text_map.get(source, "")[:3000]
+        full_doc_text = doc_text_map.get(source, "")[:1500]
 
         prompt = (
             "You are helping improve document retrieval. Given a document and a chunk "
@@ -222,7 +222,7 @@ async def _contextualize_one(
     if not chunk.page_content.strip():
         return
     source = chunk.metadata.get("source", "unknown")
-    full_doc_text = doc_text_map.get(source, "")[:3000]
+    full_doc_text = doc_text_map.get(source, "")[:1500]
     prompt = (
         "You are helping improve document retrieval. Given a document and a chunk "
         "from it, write 2 concise sentences situating the chunk within the document.\n\n"

@@ -194,8 +194,8 @@ def main():
     parser.add_argument("--tag", required=True, help="Short description e.g. 'HyDE enabled'")
     parser.add_argument("--n", type=int, default=50, help="Number of eval pairs (default 50)")
     parser.add_argument("--workspace", default="default", help="ChromaDB workspace collection name")
-    parser.add_argument("--judge-model", default="llama-3.1-8b-instant",
-                        help="Groq judge model for correctness + RAGAS (default: llama-3.1-8b-instant)")
+    parser.add_argument("--judge-model", default="openai/gpt-oss-20b",
+                        help="Groq judge model for correctness + RAGAS (default: openai/gpt-oss-20b)")
     parser.add_argument("--contextual", action="store_true",
                         help="Ingest corpus with LLM context prefixes into eval_ctx before eval")
     parser.add_argument("--data-dir", default="data/raw",

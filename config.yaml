@@ -28,5 +28,6 @@ eval:
 
 contextual_retrieval:
   enabled: true
-  model: "llama-3.1-8b-instant"
+  model: "openai/gpt-oss-20b"
   max_concurrent: 3
+  max_chunks: 50        # skip contextual if doc exceeds this; 50 chunks ≈ 25KB
