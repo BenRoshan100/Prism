@@ -48,13 +48,16 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Maintenance banner — controlled by src/config.js */}
+      {/* Maintenance overlay — controlled by src/config.js */}
       {MAINTENANCE_MODE && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-center gap-2 text-xs text-amber-800">
-          <svg className="w-3.5 h-3.5 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-          </svg>
-          <span><strong>Under maintenance</strong> — {MAINTENANCE_MESSAGE}</span>
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-950/90 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-10 max-w-md w-full mx-4 flex flex-col items-center text-center gap-4">
+            <svg className="w-14 h-14 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <h2 className="text-2xl font-bold text-gray-900">Under Maintenance</h2>
+            <p className="text-gray-500 text-sm leading-relaxed">{MAINTENANCE_MESSAGE}</p>
+          </div>
         </div>
       )}
 
